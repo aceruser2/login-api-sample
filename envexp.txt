@@ -1,0 +1,28 @@
+DATABASE_URL=postgresql+psycopg2://ford:example123@db:5432/Login?connect_timeout=20&application_name=login_api
+#DATABASE_URL=postgresql+psycopg2://ford:example123@localhost:6000/Login?connect_timeout=20&application_name=login_api
+
+host = "0.0.0.0"
+port = 3000
+
+
+SECRET_KEY = b702e17ab532c8af8452a353ed329dd9097322518517c1d655ee9d164c76baef
+ALGORITHM_LOGIN = HS384
+ALGORITHM_REFRESH = HS512
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+REFRESH_TOKEN_EXPIRE_DAYS = 30
+
+host = "0.0.0.0"
+port = 7002
+
+username = root
+full_name = admin
+password = qaz12y7
+email = root@gmail.com
+role = root
+level = 9
+department_name = admin
+description = admin all
+
+ceo=董事長
+maindepart=全
+manage=總經理

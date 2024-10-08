@@ -1,0 +1,72 @@
+def get_users(skip: int = 0, limit: int = 100):
+
+    return db.session.query(sql_adapter.User)\
+        .join(sql_adapter.Auth, sql_adapter.Auth.user_id == sql_adapter.User.id)\
+        .join(sql_adapter.Role, sql_adapter.Role.id == sql_adapter.Auth.role_id)\
+        .join(sql_adapter.Department, sql_adapter.Department.id == sql_adapter.Auth.department_id)\
+        .filter(sql_adapter.User.softdel == false())\
+        .filter(sql_adapter.Role.softdel == false())\
+        .filter(sql_adapter.Department.softdel == false())\
+        .filter(sql_adapter.Auth.softdel == false())\
+        .order_by(sql_adapter.User.id.desc())\
+        .offset(skip).limit(limit).all()
+        
+        
+        
+        
+{
+    "username": "java",
+    "email": "java@gmail.com",
+    "full_name": "java man",
+    "uuid": "94714275-2e55-4863-820d-0400c426ab22",
+    "disable": false,
+    "softdel": false,
+    "creat_dt": "2020-11-12T07:37:20.519529",
+    "update_dt": "2020-11-12T07:37:20.519529",
+    "auth_r": [
+      {
+        "uuid": "afb4ecb2-e57e-4d29-9f05-0171765cc028",
+        "role_r": {
+          "role": "正職普通員工",
+          "level": 2,
+          "uuid": "a656dc52-5f8c-46a0-aad7-2c15b9148c58",
+          "softdel": false,
+          "creat_dt": "2020-11-12T06:59:13.127151",
+          "update_dt": "2020-11-12T06:59:13.127151"
+        },
+        "department_r": {
+          "name": "外場",
+          "description": "點餐,結帳,送餐",
+          "uuid": "3e4b788f-9007-4389-8d84-af9e1e755b5b",
+          "softdel": false,
+          "creat_dt": "2020-11-12T06:58:08.123533",
+          "update_dt": "2020-11-12T06:58:08.123533"
+        },
+        "softdel": false,
+        "creat_dt": "2020-11-12T07:37:20.519529",
+        "update_dt": "2020-11-12T07:37:20.519529"
+      },
+      {
+        "uuid": "11e98753-4598-4751-95c3-89ea307fbdbb",
+        "role_r": {
+          "role": "總經理",
+          "level": 7,
+          "uuid": "86bbb562-65c1-4bf0-9a04-307a09b8802c",
+          "softdel": false,
+          "creat_dt": "2020-11-15T07:22:15.925654",
+          "update_dt": "2020-11-15T07:22:15.925654"
+        },
+        "department_r": {
+          "name": "測試",
+          "description": "string",
+          "uuid": "0ae78b41-af65-4d11-95a4-b7dc41729014",
+          "softdel": false,
+          "creat_dt": "2020-11-15T07:21:23.875223",
+          "update_dt": "2020-11-15T07:21:23.875223"
+        },
+        "softdel": true,----->為什摸這不會被濾掉
+        "creat_dt": "2020-11-15T07:31:02.418973",
+        "update_dt": "2020-11-15T07:46:54.105383"
+      }
+    ]
+  },
