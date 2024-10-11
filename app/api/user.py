@@ -41,19 +41,18 @@ def creat_user(
         )
 
 
-# @app.get("/get_users/", response_model=List[sql_schema.UserAuthInfo])
-# def get_users(
-#     last_uuid: Optional[UUID] = None,
-#     skip: int = 0,
-#     limit: int = 100,
-#     Authorize: AuthJWT = Depends(),
-# ):
-#     Authorize.jwt_required()
-#     users = None
-#     if not last_uuid:
-#         users = sql_crud.get_users(skip, limit)
-#     else:
-#         users = sql_crud.get_users_flag(last_uuid, skip, limit)
-#     if not users:
-#         return JSONResponse(status_code=400, content={"message": "users is not exist"})
-#     return users
+@app.get("/get_current_user/", response_model=List[sql_schema.UserData])
+def get_users(
+    db: Session = Depends(create_session),
+    current_user: sql_schema.UserData = Depends(get_current_user),
+):
+    return current_user
+
+
+@app.get("/get_user_by_uuid/", response_model=sql_schema.UserData)
+def get_user_by_uuid(
+    db: Session = Depends(create_session),
+    current_user: sql_schema.UserData = Depends(get_current_user),
+    user_uuid: UUID = None,
+):
+    return sql_crud.get_user_by_uuid(user_uuid=user_uuid, db=db)

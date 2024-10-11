@@ -20,6 +20,8 @@ class User(Base):
     username = Column(String)
     desk_number = Column(Integer)
     user_status = Column(Integer, default=0, comment="0:員工用 1:內用")
+    active = Column(Boolean, default=False, comment="0:沒登入用 1:登入用")
+    soft_delete = Column(Boolean, default=False)
     creat_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
     update_dt = Column(
         DateTime,
