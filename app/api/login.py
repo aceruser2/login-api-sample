@@ -1,59 +1,102 @@
 from datetime import timedelta
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 from starlette.responses import JSONResponse
-from app.handler.auth import authenticate_user
 from app import app
 from app.handler.for_map import auth
 from app.config import JwtEnv
 from app.adapter import sql_crud
+from typing import Annotated
+from app.extension.sql_ext import create_session, Session
+from app.adapter.sql_schema import Token, LoginToken
+from app.extension.jwt_config import (
+    create_access_token,
+    get_current_user,
+    create_refresh_token,
+    refresh_get_current_user,
+)
+from app.extension.emun_setting import UserStatusEmun
+from app.adapter.sql_schema import UserData
 
 
-# @app.post("/token")
-# def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+@app.post("/token")
+async def login_for_access_token(
+    userstatus: int,
+    password: str,
+    desk: str = None,
+    username: str = None,
+    db: Session = Depends(create_session),
+) -> LoginToken:
+    user = None
 
-#     user = authenticate_user(form_data.username, form_data.password)
-#     if not user:
-#         return JSONResponse(status_code=400, content="Incorrect username or password")
+    match userstatus:
+        case UserStatusEmun.STAFF.value:
+            user = sql_crud.get_user_by_username(db, username)
+        case UserStatusEmun.DESK.value:
+            user = sql_crud.get_user_by_desk(db, desk)
+        case _:
+            raise HTTPException(status_code=400, detail="login error")
 
-#     access_token_expires = timedelta(minutes=JwtEnv.ACCESS_TOKEN_EXPIRE_MINUTES)
-#     refresh_token_expires = timedelta(days=JwtEnv.REFRESH_TOKEN_EXPIRE_DAYS)
-#     access_token = Authorize.create_access_token(
-#         subject=str(user.uuid),
-#         fresh=True,
-#         algorithm=JwtEnv.ALGORITHM_LOGIN,
-#         expires_time=access_token_expires,
-#         user_claims={"username": user.username, "auth_r": list(map(auth, user.auth_r))},
-#     )
-#     refresh_token = Authorize.create_refresh_token(
-#         subject=str(user.uuid),
-#         algorithm=JwtEnv.ALGORITHM_REFRESH,
-#         expires_time=refresh_token_expires,
-#     )
+    if not user.check_password(value=password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=JwtEnv.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = None
+    match userstatus:
+        case UserStatusEmun.STAFF.value:
+            access_token = create_access_token(
+                data={"sub": user.username, "extra": userstatus},
+                expires_delta=access_token_expires,
+            )
+            refresh_token = create_refresh_token(
+                data={"sub": user.username, "extra": userstatus},
+                expires_delta=access_token_expires,
+            )
+        case UserStatusEmun.DESK.value:
+            access_token = create_access_token(
+                data={"sub": user.desk_number, "extra": userstatus},
+                expires_delta=access_token_expires,
+            )
+            refresh_token = create_refresh_token(
+                data={"sub": user.desk_number, "extra": userstatus},
+                expires_delta=access_token_expires,
+            )
+    if access_token is None:
+        raise HTTPException(status_code=400, detail="login error")
+    return LoginToken(
+        access_token=access_token, refresh_token=refresh_token, token_type="bearer"
+    )
 
-#     return {
-#         "access_token": access_token,
-#         "refresh_token": refresh_token,
-#         "token_type": "bearer",
-#     }
 
+@app.post("/refresh")
+def refresh(
+    db: Session = Depends(create_session),
+    refresh_get_current_user: UserData = Depends(refresh_get_current_user),
+) -> Token:
 
-# https://indominusbyte.github.io/fastapi-jwt-auth/advanced-usage/dynamic-algorithm/
-# In protected route, automatically check incoming JWT
-# have algorithm in your `authjwt_decode_algorithms` or not
+    access_token_expires = timedelta(minutes=JwtEnv.ACCESS_TOKEN_EXPIRE_MINUTES)
+    match get_current_user.user_status:
 
+        case UserStatusEmun.STAFF.value:
+            access_token = create_access_token(
+                data={
+                    "sub": refresh_get_current_user.username,
+                    "extra": refresh_get_current_user.user_status,
+                },
+                expires_delta=access_token_expires,
+            )
+        case UserStatusEmun.DESK.value:
+            access_token = create_access_token(
+                data={
+                    "sub": refresh_get_current_user.username,
+                    "extra": refresh_get_current_user.user_status,
+                },
+                expires_delta=access_token_expires,
+            )
+        case _:
+            raise HTTPException(status_code=400, detail="login error")
 
-# @app.post("/refresh")
-# def refresh(Authorize: AuthJWT = Depends()):
-#     Authorize.jwt_refresh_token_required()
-
-#     current_user = Authorize.get_jwt_subject()
-#     user = sql_crud.get_user_by_uuid(current_user)
-#     access_token_expires = timedelta(minutes=JwtEnv.ACCESS_TOKEN_EXPIRE_MINUTES)
-#     new_access_token = Authorize.create_access_token(
-#         subject=str(user.uuid),
-#         algorithm=JwtEnv.ALGORITHM_LOGIN,
-#         expires_time=access_token_expires,
-#         user_claims={"username": user.username, "auth_r": list(map(auth, user.auth_r))},
-#     )
-#     return {"access_token": new_access_token}
+    return Token(access_token=access_token, token_type="bearer")

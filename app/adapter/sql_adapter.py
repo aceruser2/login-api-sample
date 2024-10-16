@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Boolean, Integer, DateTime, text
-from sqlalchemy.sql import func
+from sqlalchemy import func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
@@ -49,3 +49,8 @@ class User(Base):
         檢查密碼
         """
         return pwd_context.verify(value, self._password)
+
+
+
+
+

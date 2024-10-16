@@ -4,4 +4,4 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 app = FastAPI()
 
-from app.api import auth, depart, login, role, user
+from app.api import login ,user

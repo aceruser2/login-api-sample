@@ -10,8 +10,15 @@ class Token(BaseModel):
     token_type: str
 
 
+class LoginToken(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str
+
+
 class TokenData(BaseModel):
-    username: Optional[str] = None
+    user_or_desk: Optional[str] = None
+    extra: Optional[str] = None
 
 
 class UserData(BaseModel):

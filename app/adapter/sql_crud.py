@@ -10,8 +10,7 @@ from sqlalchemy.sql.expression import false
 from app.adapter.sql_adapter import User
 from sqlalchemy import select, insert
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import func
-from sqlalchemy.sql.expression import false
+from sqlalchemy import func
 from app.extension.emun_setting import UserStatusEmun
 
 log = logging.getLogger(__name__)
@@ -47,7 +46,7 @@ def create_user(
     return create_user
 
 
-def get_user(db: Session, user_name: str):
+def get_user_by_username(db: Session, user_name: str):
     return db.execute(
         select(User).where(
             User.username == user_name,
@@ -57,7 +56,7 @@ def get_user(db: Session, user_name: str):
     ).scalar()
 
 
-def get_user_by_desk_number(db: Session, desk_number: str):
+def get_user_by_desk(db: Session, desk_number: str):
     return db.execute(
         select(User).where(
             User.desk_number == desk_number,
@@ -86,3 +85,30 @@ def get_users(db: Session, skip: int = 0, limit: int = 10):
         select(func.count(User.id)).where(User.soft_delete == false())
     ).scalars()
     return {"total": total, "skip": skip, "limit": limit, "users": users}
+
+
+def update_user(
+    db: Session, user_uuid: UUID, user_status: int, username: str, desk_number: str
+):
+    """update user"""
+
+    update_user = get_user_by_uuid(db, user_uuid)
+    if update_user is None:
+        raise HTTPException(status_code=400, detail="user not found")
+    update_user.user_status = user_status
+    update_user.username = username
+    update_user.desk_number = desk_number
+    db.commit()
+    db.flush()
+    return update_user
+
+
+def delete_user(db: Session, user_uuid: UUID):
+    """delete user"""
+    delete_user = get_user_by_uuid(db, user_uuid)
+    if delete_user is None:
+        raise HTTPException(status_code=400, detail="user not found")
+    delete_user.soft_delete = True
+    db.commit()
+    db.flush()
+    return delete_user

@@ -8,12 +8,13 @@
 
 
     jwt
-    https://pypi.org/project/fastapi-jwt-auth/
     https://pyjwt.readthedocs.io/en/latest/algorithms.html
 
 
-    wait put auth role
-         put user
-         get all user,auth,depart,等not filter
-         wait add jwt
-         
+    wait
+    1. 去識別
+    2. 異步
+    3. 權限管理(不實做)
+    
+    同步套件
+    pip install psycopg2-binary
