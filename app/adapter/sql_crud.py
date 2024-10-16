@@ -12,6 +12,7 @@ from sqlalchemy import select, insert
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from sqlalchemy.sql.expression import false
+from app.extension.emun_setting import UserStatusEmun
 
 log = logging.getLogger(__name__)
 
@@ -25,13 +26,13 @@ def create_user(
     create_user = None
 
     match user_status:
-        case 0:
+        case UserStatusEmun.STAFF.value:
             if username == "" or username is None:
                 raise HTTPException(status_code=400, detail="username error")
             if get_user(db, username) is not None:
                 raise HTTPException(status_code=400, detail="username already exist")
             create_user = User(user_status=user_status, username=username)
-        case 1:
+        case UserStatusEmun.DESK.value:
             if desk_number == "" or username is None:
                 raise HTTPException(status_code=400, detail="desk_number error")
             if get_user_by_desk_number(db, desk_number) is not None:
@@ -46,11 +47,11 @@ def create_user(
     return create_user
 
 
-def get_user(db: Session, user_name: UUID):
+def get_user(db: Session, user_name: str):
     return db.execute(
         select(User).where(
             User.username == user_name,
-            User.user_status == 0,
+            User.user_status == UserStatusEmun.STAFF.value,
             User.soft_delete == false(),
         )
     ).scalar()
@@ -60,7 +61,7 @@ def get_user_by_desk_number(db: Session, desk_number: str):
     return db.execute(
         select(User).where(
             User.desk_number == desk_number,
-            User.user_status == 1,
+            User.user_status == UserStatusEmun.DESK.value,
             User.soft_delete == false(),
         )
     ).scalar()
