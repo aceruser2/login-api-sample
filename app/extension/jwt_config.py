@@ -1,28 +1,30 @@
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
 from pydantic import BaseModel
-
+import bcrypt
 from app.config import JwtEnv
-from app.extension.bcrypt_ext import pwd_context
 from app.adapter.sql_schema import TokenData
 from app.adapter.sql_crud import get_user_by_desk, get_user_by_username
 from sqlalchemy.orm import Session
 from app.extension.sql_ext import create_session
 from app.extension.emun_setting import UserStatusEmun
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 app = FastAPI()
 
+auth_scheme = HTTPBearer()
+
 
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password)
 
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
@@ -55,13 +57,22 @@ def create_refresh_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
-async def get_current_user(token: str, db: Session = Depends(create_session)):
+async def get_current_user(
+    bearer: HTTPAuthorizationCredentials = Depends(auth_scheme),
+    db: Session = Depends(create_session),
+):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
+        headers={"token": "Bearer"},
     )
+
     try:
+        token = None
+        if bearer:
+            token = str(bearer.credentials)
+        if not token:
+            raise credentials_exception
         payload = jwt.decode(
             token, JwtEnv.SECRET_KEY, algorithms=[JwtEnv.ALGORITHM_LOGIN]
         )
@@ -87,18 +98,31 @@ async def get_current_user(token: str, db: Session = Depends(create_session)):
     return user
 
 
-async def refresh_get_current_user(token: str, db: Session = Depends(create_session)):
+async def refresh_get_current_user(
+    bearer: HTTPAuthorizationCredentials = Depends(auth_scheme),
+    db: Session = Depends(create_session),
+):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        refresh_token = None
+        if bearer:
+            refresh_token = str(bearer.credentials)
+        print(refresh_token)
+        if not refresh_token:
+            raise credentials_exception
+        print(1)
         payload = jwt.decode(
-            token, JwtEnv.SECRET_KEY, algorithms=[JwtEnv.REFRESH_TOKEN_EXPIRE_DAYS]
+            refresh_token,
+            JwtEnv.SECRET_KEY,
+            algorithms=[JwtEnv.ALGORITHM_REFRESH],
         )
         user_or_desk: str = payload.get("sub")
         user_status: str = payload.get("extra")
+        print(user_or_desk, user_status)
         if user_or_desk is None or user_status is None:
             raise credentials_exception
         token_data = TokenData(user_or_desk=user_or_desk, extra=user_status)

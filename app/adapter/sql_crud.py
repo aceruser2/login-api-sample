@@ -17,7 +17,14 @@ log = logging.getLogger(__name__)
 
 
 def create_user(
-    db: Session, user_status: int, username: str, desk_number: str, password: str
+    db: Session,
+    user_status: int,
+    username: str,
+    desk_number: str,
+    password: str,
+    email: str = None,
+    gender: str = None,
+    ture_name: str = None,
 ):
     """用sqlalchemy建立使用者的函式
     0:員工用,1:內用
@@ -28,15 +35,19 @@ def create_user(
         case UserStatusEmun.STAFF.value:
             if username == "" or username is None:
                 raise HTTPException(status_code=400, detail="username error")
-            if get_user(db, username) is not None:
+            if get_user_by_username(db, username) is not None:
                 raise HTTPException(status_code=400, detail="username already exist")
-            create_user = User(user_status=user_status, username=username)
+            info_data = {"gender": gender, "true_name": ture_name}
+            create_user = User(
+                user_status=user_status, username=username, email=email, info=info_data
+            )
         case UserStatusEmun.DESK.value:
             if desk_number == "" or username is None:
                 raise HTTPException(status_code=400, detail="desk_number error")
-            if get_user_by_desk_number(db, desk_number) is not None:
+            if get_user_by_desk(db, desk_number) is not None:
                 raise HTTPException(status_code=400, detail="desk_number already exist")
             create_user = User(user_status=user_status, desk_number=desk_number)
+
         case _:
             raise HTTPException(status_code=400, detail="user_status error")
     create_user.password(password)

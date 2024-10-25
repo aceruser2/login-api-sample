@@ -4,31 +4,6 @@ from app.extension.loadenv import load
 load()
 
 
-# class Root(object):
-#     """
-#     root
-#     """
-
-#     username = os.environ["username"]
-#     full_name = os.environ["full_name"]
-#     password = os.environ["password"]
-#     email = os.environ["email"]
-#     role = os.environ["role"]
-#     level = os.environ["level"]
-#     department_name = os.environ["department_name"]
-#     description = os.environ["description"]
-
-
-# class MainRole(object):
-#     """
-#     role
-#     """
-
-#     ceo = os.environ["ceo"]
-#     manage = os.environ["manage"]
-#     maindepart = os.environ["maindepart"]
-
-
 class JwtEnv(object):
     """
     jwt env
@@ -54,3 +29,4 @@ class sqlconn(object):
     dbconn = os.environ.get(
         "dbconn", "postgresql+psycopg2://user:password@localhost/dbname"
     )
+    pgp_pass = os.environ.get("PGP_PASSPHRASE", "gdfgshshtfdjdhdjdgds")

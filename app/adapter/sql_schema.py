@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
@@ -17,14 +17,14 @@ class LoginToken(BaseModel):
 
 
 class TokenData(BaseModel):
-    user_or_desk: Optional[str] = None
-    extra: Optional[str] = None
+    user_or_desk: Union[str, int] = None
+    extra: Optional[int] = None
 
 
 class UserData(BaseModel):
     uuid: UUID
-    username: str
-    desk_number: int
-    user_status: str
+    username: Optional[str] = None
+    desk_number: Optional[int] = None
+    user_status: int
     creat_dt: datetime
     update_dt: datetime

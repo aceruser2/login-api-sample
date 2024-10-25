@@ -22,7 +22,7 @@ config = context.config
 # add2
 # this will overwrite the ini-file sqlalchemy.url path
 # with the path given in the config of the main code
-config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
+config.set_main_option("sqlalchemy.url", os.environ["dbconn"])
 
 
 # Interpret the config file for Python logging.

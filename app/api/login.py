@@ -17,7 +17,7 @@ from app.extension.jwt_config import (
 )
 from app.extension.emun_setting import UserStatusEmun
 from app.adapter.sql_schema import UserData
-
+from app.adapter.sql_adapter import User
 
 @app.post("/token")
 async def login_for_access_token(
@@ -37,6 +37,12 @@ async def login_for_access_token(
         case _:
             raise HTTPException(status_code=400, detail="login error")
 
+    if not user: 
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     if not user.check_password(value=password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -74,11 +80,11 @@ async def login_for_access_token(
 @app.post("/refresh")
 def refresh(
     db: Session = Depends(create_session),
-    refresh_get_current_user: UserData = Depends(refresh_get_current_user),
+    refresh_get_current_user: User = Depends(refresh_get_current_user),
 ) -> Token:
 
     access_token_expires = timedelta(minutes=JwtEnv.ACCESS_TOKEN_EXPIRE_MINUTES)
-    match get_current_user.user_status:
+    match refresh_get_current_user.user_status:
 
         case UserStatusEmun.STAFF.value:
             access_token = create_access_token(

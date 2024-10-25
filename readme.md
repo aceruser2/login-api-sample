@@ -3,7 +3,7 @@
     alembic revision --autogenerate -m "first migration" 
     alembic upgrade head
 第二次 
-    alembic upgrade head && uvicorn server:app --host 0.0.0.0 --port 7002 --reload
+    alembic upgrade head && uvicorn server:app --host 0.0.0.0 --port 8000 --reload
      """ http://0.0.0.0:8000/docs
 
 
@@ -18,3 +18,5 @@
     
     同步套件
     pip install psycopg2-binary
+
+    CREATE EXTENSION pgcrypto;

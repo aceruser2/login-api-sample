@@ -10,7 +10,7 @@ from app.adapter import sql_crud, sql_schema
 from app.handler.vaild import errmsn
 from sqlalchemy.orm import Session
 from app.extension.jwt_config import get_current_user
-
+from app.adapter.sql_adapter import User
 log = logging.getLogger(__name__)
 
 
@@ -22,6 +22,9 @@ def creat_user(
     username: str = None,
     desk_number: str = None,
     password: str = None,
+    email: Optional[str] = None,
+    gender: Optional[int] = None,
+    true_name: Optional[str] = None,
 ):
 
     try:
@@ -30,6 +33,9 @@ def creat_user(
             username=username,
             desk_number=desk_number,
             password=password,
+            email=email,
+            gender=gender,
+            ture_name=true_name,
             db=db,
         )
         return user
@@ -41,10 +47,10 @@ def creat_user(
         )
 
 
-@app.get("/get_current_user/", response_model=List[sql_schema.UserData])
+@app.get("/get_current_user/", response_model=sql_schema.UserData)
 def get_users(
     db: Session = Depends(create_session),
-    current_user: sql_schema.UserData = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     return current_user
 
@@ -53,6 +59,6 @@ def get_users(
 def get_user_by_uuid(
     db: Session = Depends(create_session),
     current_user: sql_schema.UserData = Depends(get_current_user),
-    user_uuid: UUID = None,
+    user_uuid: str = None,
 ):
     return sql_crud.get_user_by_uuid(user_uuid=user_uuid, db=db)
