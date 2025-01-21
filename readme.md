@@ -18,5 +18,9 @@
     
     同步套件
     pip install psycopg2-binary
+    dbconn="postgresql+psycopg2://user:123456@localhost:7000/db"
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
     CREATE EXTENSION pgcrypto;
+
+    sudo service docker start

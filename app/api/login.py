@@ -7,7 +7,7 @@ from app.handler.for_map import auth
 from app.config import JwtEnv
 from app.adapter import sql_crud
 from typing import Annotated
-from app.extension.sql_ext import create_session, Session
+from app.extension.sql_ext import get_session, Session
 from app.adapter.sql_schema import Token, LoginToken
 from app.extension.jwt_config import (
     create_access_token,
@@ -25,7 +25,7 @@ async def login_for_access_token(
     password: str,
     desk: str = None,
     username: str = None,
-    db: Session = Depends(create_session),
+    db: Session = Depends(get_session),
 ) -> LoginToken:
     user = None
 
@@ -79,7 +79,7 @@ async def login_for_access_token(
 
 @app.post("/refresh")
 def refresh(
-    db: Session = Depends(create_session),
+    db: Session = Depends(get_session),
     refresh_get_current_user: User = Depends(refresh_get_current_user),
 ) -> Token:
 

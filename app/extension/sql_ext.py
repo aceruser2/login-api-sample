@@ -26,13 +26,14 @@ db_engine = create_engine(
 )
 # predict 150m/s wait test
 
-
-def create_session() -> Iterator[Session]:
-
-    session = sessionmaker(
+session_maker = sessionmaker(
         autocommit=False, autoflush=False, bind=db_engine, future=True
     )
-    session = ScopedSession(session)()
+scoped_session = ScopedSession(session_maker)
+
+def get_session() -> Iterator[Session]:
+
+    session = scoped_session()
     try:
         yield session
     except Exception as ex:
@@ -43,9 +44,10 @@ def create_session() -> Iterator[Session]:
         db_engine.dispose()
 
 
+
 @contextmanager
 def use_with_create_session() -> Iterator[Session]:
-    return create_session()
+    return get_session()
 
 
 def singleton(cls):

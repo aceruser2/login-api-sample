@@ -10,7 +10,7 @@ from app.config import JwtEnv
 from app.adapter.sql_schema import TokenData
 from app.adapter.sql_crud import get_user_by_desk, get_user_by_username
 from sqlalchemy.orm import Session
-from app.extension.sql_ext import create_session
+from app.extension.sql_ext import get_session
 from app.extension.emun_setting import UserStatusEmun
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -59,7 +59,7 @@ def create_refresh_token(data: dict, expires_delta: timedelta | None = None):
 
 async def get_current_user(
     bearer: HTTPAuthorizationCredentials = Depends(auth_scheme),
-    db: Session = Depends(create_session),
+    db: Session = Depends(get_session),
 ):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -100,7 +100,7 @@ async def get_current_user(
 
 async def refresh_get_current_user(
     bearer: HTTPAuthorizationCredentials = Depends(auth_scheme),
-    db: Session = Depends(create_session),
+    db: Session = Depends(get_session),
 ):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

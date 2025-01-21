@@ -1,4 +1,4 @@
-from typing import List, Optional, Union
+from typing import List, Optional, Union,Dict
 from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
@@ -25,6 +25,8 @@ class UserData(BaseModel):
     uuid: UUID
     username: Optional[str] = None
     desk_number: Optional[int] = None
+    info:Optional[Dict]
+    email:str
     user_status: int
     creat_dt: datetime
     update_dt: datetime

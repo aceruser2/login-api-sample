@@ -1,9 +1,10 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional,Dict
+from pydantic import Json
 from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from fastapi import Depends
-from app.extension.sql_ext import create_session
+from app.extension.sql_ext import get_session
 from fastapi.responses import JSONResponse
 from app import app
 from app.adapter import sql_crud, sql_schema
@@ -16,7 +17,7 @@ log = logging.getLogger(__name__)
 
 @app.post("/creat_user/", response_model=sql_schema.UserData)
 def creat_user(
-    db: Session = Depends(create_session),
+    db: Session = Depends(get_session),
     current_user: sql_schema.UserData = Depends(get_current_user),
     user_status: int = 0,
     username: str = None,
@@ -25,6 +26,7 @@ def creat_user(
     email: Optional[str] = None,
     gender: Optional[int] = None,
     true_name: Optional[str] = None,
+    info: Optional[Dict] = None
 ):
 
     try:
@@ -36,6 +38,7 @@ def creat_user(
             email=email,
             gender=gender,
             ture_name=true_name,
+            info=info ,
             db=db,
         )
         return user
@@ -49,7 +52,7 @@ def creat_user(
 
 @app.get("/get_current_user/", response_model=sql_schema.UserData)
 def get_users(
-    db: Session = Depends(create_session),
+    db: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     return current_user
@@ -57,7 +60,7 @@ def get_users(
 
 @app.get("/get_user_by_uuid/", response_model=sql_schema.UserData)
 def get_user_by_uuid(
-    db: Session = Depends(create_session),
+    db: Session = Depends(get_session),
     current_user: sql_schema.UserData = Depends(get_current_user),
     user_uuid: str = None,
 ):

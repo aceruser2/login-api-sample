@@ -1,0 +1,15 @@
+
+
+services:
+  db:
+    container_name: postgres-login
+    build: ./postgres
+    restart: unless-stopped
+    # image: postgresql-13:utf_8_01
+    # restart: always
+    ports:
+      - "7000:5432"
+    env_file:
+      - p.env
+    volumes:
+      - ./pg-data:/var/lib/postgresql/data

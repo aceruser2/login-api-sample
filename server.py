@@ -11,6 +11,11 @@ from app.extension.sql_ext import db_engine, use_with_create_session
 
 
 def create_admin():
+    with db_engine.begin() as conn:
+         # 使用 `Base.metadata.drop_all()` 来执行删除表格操作
+        Base.metadata.drop_all(bind=conn)
+        # 使用 `Base.metadata.create_all()` 来执行创建表格操作
+        Base.metadata.create_all(bind=conn)
     with use_with_create_session() as db:
 
         user = get_user_by_username(db=db, user_name="admin")

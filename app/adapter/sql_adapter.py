@@ -20,11 +20,13 @@ from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy.dialects.postgresql import BYTEA, JSON, JSONB
 from sqlalchemy.sql.operators import OperatorType
 from sqlalchemy import event
-from typing import Any, ClassVar
+from typing import Any, ClassVar,Dict
 from app.config import sqlconn
 from sqlalchemy.orm import DeclarativeBase
 from app.extension.sql_ext import use_with_create_session
- 
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm.scoping import ScopedSession
+from app.extension.sql_ext import scoped_session
 
 class Base(DeclarativeBase):
     def __repr__(self: "Base") -> str:
@@ -85,121 +87,195 @@ class PGPEncryptString(TypeDecorator):
     def column_expression(self: "PGPEncryptString", col: Any):
         return pgp_sym_decrypt(col)
 
-
 class PGPEncryptJSONB(TypeDecorator):
-    """A type for storing encrypted JSONB data in the database.
-    This type encrypts the data server side using the pgcrypto extension's pgp_sym_encrypt function before storing it in
-    the database. It loops through the JSONB data and encrypts each value individually. This allows for searching and
-    filtering on the encrypted data.
-    The data is decrypted using the pgp_sym_decrypt function when it is read from the database. The type attempts to
-    infer the primitive type of the decrypted data and return it as a Python primitive type.
-    Typical usage::
-        class MyModel(Base):
-            __tablename__ = "my_model"
-            id = Column(Integer, primary_key=True)
-            encrypted_data: Mapped[str] = mapped_column(PGPEncryptJSONB())
-        # Inserting data
-        data = {"key": "value", "count": 1}
-        my_model = MyModel(encrypted_data=data)
-        db.session.add(my_model)
-        db.session.commit()
-        # Filtering data
-        my_model = db.session.query(MyModel).filter(
-            MyModel.encrypted_data["key"].astext == "value"
-        ).first()
-        my_model = db.session.query(MyModel).filter(
-            MyModel.encrypted_data["count"].astext.cast(Integer) == 1
-        ).first()
-    """
-
     impl = JSONB
     cache_ok = True
 
-    class Comparator(JSON.Comparator):
-        """Custom comparator for PGPEncryptJSONB."""
+    def __init__(self, scoped_session: ScopedSession, *args, **kwargs):
+        """
+        Initialize the type decorator with a scoped session.
+        """
+        super().__init__(*args, **kwargs)
+        self.scoped_session = scoped_session
 
-        # add custom operators here
-        @property
-        def astext(self: "PGPEncryptJSONB.Comparator") -> Any:
-            res = super().astext
+    def get_session(self) -> Session:
+        """
+        Retrieve the current thread-local session from ScopedSession.
+        """
+        return self.scoped_session()
 
-            return pgp_sym_decrypt(res)
+    def encrypt_value(self, val: Any) -> Any:
+        """
+        Encrypt a value using pgcrypto functions.
+        """
+        session = self.get_session()
+        if isinstance(val, dict):
+            return {k: self.encrypt_value(v) for k, v in val.items()}
+        if isinstance(val, list):
+            return [self.encrypt_value(v) for v in val]
 
-    @property
-    def comparator_factory(self: "PGPEncryptJSONB") -> Any:
-        return self.Comparator
+        return session.query(
+            func.cast(
+                func.pgp_sym_encrypt(
+                    func.cast(val, String),
+                    sqlconn.pgp_pass,
+                    "cipher-algo=aes256, s2k-mode=1",
+                ),
+                String,
+            )
+        ).scalar()
 
-    def infer_primitive_type(
-        self: "PGPEncryptJSONB", value: str
-    ) -> bool | int | float | str:
-        if value.lower() in ["true", "false"]:
-            return bool(value)
+    def decrypt_value(self, val: Any) -> Any:
+        """
+        Decrypt a value using pgcrypto functions.
+        """
+        session = self.get_session()
+        if isinstance(val, dict):
+            return {k: self.decrypt_value(v) for k, v in val.items()}
+        if isinstance(val, list):
+            return [self.decrypt_value(v) for v in val]
+         
+        return session.query(
+            func.pgp_sym_decrypt(
+                val,
+                sqlconn.pgp_pass,
+                "cipher-algo=aes256, s2k-mode=1",
+            )
+        ).scalar()
 
-        try:
-            return int(value)
-        except ValueError:
-            pass
-
-        try:
-            return float(value)
-        except ValueError:
-            pass
-
-        return value
-
-    def process_bind_param(
-        self: "PGPEncryptJSONB", value: dict, dialect: Dialect
-    ) -> dict[Any, Any] | list[Any] | Any:  # noqa: ARG002
-
+    def process_bind_param(self, value: Dict, dialect: Any) -> Any:
+        """
+        Process values before binding them to the database.
+        """
         if value is None:
             return value
+        return self.encrypt_value(value)
 
-        def encrypt_value(val: Any) -> dict[Any, Any] | list[Any] | Any:
-            if isinstance(val, dict):
-                return {k: encrypt_value(v) for k, v in val.items()}
-
-            if isinstance(val, list):
-                return [encrypt_value(v) for v in val]
-            # wait vaild
-            with use_with_create_session() as db:
-                return db.session.query(
-                    func.cast(
-                        func.pgp_sym_encrypt(
-                            func.cast(val, String),
-                            sqlconn.pgp_pass,
-                            "cipher-algo=aes256, s2k-mode=1",
-                        ),
-                        String,
-                    )
-                ).scalar()
-
-        return encrypt_value(value)
-
-    def process_result_value(
-        self: "PGPEncryptJSONB",
-        value: dict,
-        dialect: Dialect,  # noqa: ARG002
-    ) -> dict[Any, Any] | list[Any] | Any:
-
+    def process_result_value(self, value: Dict, dialect: Any) -> Any:
+        """
+        Process values after retrieving them from the database.
+        """
         if value is None:
             return value
+        return self.decrypt_value(value)
+    
+encrypted_jsonb_type = PGPEncryptJSONB(scoped_session=scoped_session)
 
-        def decrypt_value(val: Any) -> dict[Any, Any] | list[Any] | Any:
-            if isinstance(val, dict):
-                return {k: decrypt_value(v) for k, v in val.items()}
-            if isinstance(val, list):
-                return [decrypt_value(v) for v in val]
-            with use_with_create_session() as db:
-                result = db.session.query(
-                    func.pgp_sym_decrypt(
-                        val,
-                        sqlconn.pgp_pass,
-                        "cipher-algo=aes256, s2k-mode=1",
-                    )
-                ).scalar()
-                return self.infer_primitive_type(result)
 
-        return decrypt_value(value)
+# class PGPEncryptJSONB(TypeDecorator):
+#     """A type for storing encrypted JSONB data in the database.
+#     This type encrypts the data server side using the pgcrypto extension's pgp_sym_encrypt function before storing it in
+#     the database. It loops through the JSONB data and encrypts each value individually. This allows for searching and
+#     filtering on the encrypted data.
+#     The data is decrypted using the pgp_sym_decrypt function when it is read from the database. The type attempts to
+#     infer the primitive type of the decrypted data and return it as a Python primitive type.
+#     Typical usage::
+#         class MyModel(Base):
+#             __tablename__ = "my_model"
+#             id = Column(Integer, primary_key=True)
+#             encrypted_data: Mapped[str] = mapped_column(PGPEncryptJSONB())
+#         # Inserting data
+#         data = {"key": "value", "count": 1}
+#         my_model = MyModel(encrypted_data=data)
+#         db.session.add(my_model)
+#         db.session.commit()
+#         # Filtering data
+#         my_model = db.session.query(MyModel).filter(
+#             MyModel.encrypted_data["key"].astext == "value"
+#         ).first()
+#         my_model = db.session.query(MyModel).filter(
+#             MyModel.encrypted_data["count"].astext.cast(Integer) == 1
+#         ).first()
+#     """
+
+#     impl = JSONB
+#     cache_ok = True
+
+#     class Comparator(JSON.Comparator):
+#         """Custom comparator for PGPEncryptJSONB."""
+
+#         # add custom operators here
+#         @property
+#         def astext(self: "PGPEncryptJSONB.Comparator") -> Any:
+#             res = super().astext
+
+#             return pgp_sym_decrypt(res)
+
+#     @property
+#     def comparator_factory(self: "PGPEncryptJSONB") -> Any:
+#         return self.Comparator
+
+#     def infer_primitive_type(
+#         self: "PGPEncryptJSONB", value: str
+#     ) -> bool | int | float | str:
+#         if value.lower() in ["true", "false"]:
+#             return bool(value)
+
+#         try:
+#             return int(value)
+#         except ValueError:
+#             pass
+
+#         try:
+#             return float(value)
+#         except ValueError:
+#             pass
+
+#         return value
+
+#     def process_bind_param(
+#         self: "PGPEncryptJSONB", value: dict, dialect: Dialect
+#     ) -> dict[Any, Any] | list[Any] | Any:  # noqa: ARG002
+
+#         if value is None:
+#             return value
+
+#         def encrypt_value(val: Any) -> dict[Any, Any] | list[Any] | Any:
+#             if isinstance(val, dict):
+#                 return {k: encrypt_value(v) for k, v in val.items()}
+
+#             if isinstance(val, list):
+#                 return [encrypt_value(v) for v in val]
+#             # wait vaild
+#             with use_with_create_session() as db:
+#                 return db.session.query(
+#                     func.cast(
+#                         func.pgp_sym_encrypt(
+#                             func.cast(val, String),
+#                             sqlconn.pgp_pass,
+#                             "cipher-algo=aes256, s2k-mode=1",
+#                         ),
+#                         String,
+#                     )
+#                 ).scalar()
+
+#         return encrypt_value(value)
+
+#     def process_result_value(
+#         self: "PGPEncryptJSONB",
+#         value: dict,
+#         dialect: Dialect,  # noqa: ARG002
+#     ) -> dict[Any, Any] | list[Any] | Any:
+
+#         if value is None:
+#             return value
+
+#         def decrypt_value(val: Any) -> dict[Any, Any] | list[Any] | Any:
+#             if isinstance(val, dict):
+#                 return {k: decrypt_value(v) for k, v in val.items()}
+#             if isinstance(val, list):
+#                 return [decrypt_value(v) for v in val]
+#             with use_with_create_session() as db:
+#                 result = db.session.query(
+#                     func.pgp_sym_decrypt(
+#                         val,
+#                         sqlconn.pgp_pass,
+#                         "cipher-algo=aes256, s2k-mode=1",
+#                     )
+#                 ).scalar()
+#                 return self.infer_primitive_type(result)
+
+#         return decrypt_value(value)
 
 
 def pgp_sym_decrypt(col: Any) -> FunctionElement:
@@ -217,8 +293,8 @@ class User(Base):
     )
     username = Column(String)
     _password = Column(BYTEA)
-    email = Column(String)
-    info = Column(JSONB)
+    email = Column(PGPEncryptString())
+    info = Column(encrypted_jsonb_type)
     desk_number = Column(Integer)
     user_status = Column(Integer, default=0, comment="0:員工用 1:內用")
     active = Column(Boolean, default=False, comment="0:沒登入用 1:登入用")
