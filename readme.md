@@ -24,3 +24,5 @@
     CREATE EXTENSION pgcrypto;
 
     sudo service docker start
+
+    加密 jwt成功
