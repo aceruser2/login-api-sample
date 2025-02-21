@@ -30,3 +30,9 @@ class UserData(BaseModel):
     user_status: int
     creat_dt: datetime
     update_dt: datetime
+
+class LoginData(BaseModel):
+    userstatus: int
+    password: str
+    desk: Optional[str] = None
+    username: Optional[str] = None

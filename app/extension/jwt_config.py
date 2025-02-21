@@ -7,7 +7,7 @@ from jwt.exceptions import InvalidTokenError
 from pydantic import BaseModel
 import bcrypt
 from app.config import JwtEnv
-from app.adapter.sql_schema import TokenData
+from app.adapter.body_schema import TokenData
 from app.adapter.sql_crud import get_user_by_desk, get_user_by_username
 from sqlalchemy.orm import Session
 from app.extension.sql_ext import get_session

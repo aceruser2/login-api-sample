@@ -57,7 +57,7 @@ def create_user(
     return create_user
 
 
-def get_user_by_username(db: Session, user_name: str):
+def get_user_by_username(db: Session, user_name: str)->User:
     return db.execute(
         select(User).where(
             User.username == user_name,
@@ -67,7 +67,7 @@ def get_user_by_username(db: Session, user_name: str):
     ).scalar()
 
 
-def get_user_by_desk(db: Session, desk_number: str):
+def get_user_by_desk(db: Session, desk_number: str)->User:
     return db.execute(
         select(User).where(
             User.desk_number == desk_number,

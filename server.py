@@ -8,6 +8,7 @@ from app import app
 from app.config import HostConfig
 from app.adapter.sql_adapter import Base
 from app.extension.sql_ext import db_engine, use_with_create_session
+from fastapi.middleware.cors import CORSMiddleware
 
 
 def create_admin():
@@ -43,5 +44,18 @@ def steup():
 steup()
 
 if __name__ == "__main__":
+    origins = [
+    "http://localhost",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:8080",
+]
 
+    app.add_middleware(
+    CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     uvicorn.run(app, host=HostConfig.host, port=int(HostConfig.port))

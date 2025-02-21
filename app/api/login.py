@@ -8,7 +8,7 @@ from app.config import JwtEnv
 from app.adapter import sql_crud
 from typing import Annotated
 from app.extension.sql_ext import get_session, Session
-from app.adapter.sql_schema import Token, LoginToken
+from app.adapter.body_schema import Token, LoginToken,LoginData
 from app.extension.jwt_config import (
     create_access_token,
     get_current_user,
@@ -16,24 +16,22 @@ from app.extension.jwt_config import (
     refresh_get_current_user,
 )
 from app.extension.emun_setting import UserStatusEmun
-from app.adapter.sql_schema import UserData
+from app.adapter.body_schema import UserData
 from app.adapter.sql_adapter import User
+
 
 @app.post("/token")
 async def login_for_access_token(
-    userstatus: int,
-    password: str,
-    desk: str = None,
-    username: str = None,
+    login_data: LoginData,
     db: Session = Depends(get_session),
 ) -> LoginToken:
     user = None
 
-    match userstatus:
+    match login_data.userstatus:
         case UserStatusEmun.STAFF.value:
-            user = sql_crud.get_user_by_username(db, username)
+            user = sql_crud.get_user_by_username(db, login_data.username)
         case UserStatusEmun.DESK.value:
-            user = sql_crud.get_user_by_desk(db, desk)
+            user = sql_crud.get_user_by_desk(db, login_data.desk)
         case _:
             raise HTTPException(status_code=400, detail="login error")
 
@@ -43,7 +41,7 @@ async def login_for_access_token(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if not user.check_password(value=password):
+    if not user.check_password(value=login_data.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -51,23 +49,23 @@ async def login_for_access_token(
         )
     access_token_expires = timedelta(minutes=JwtEnv.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = None
-    match userstatus:
+    match login_data.userstatus:
         case UserStatusEmun.STAFF.value:
             access_token = create_access_token(
-                data={"sub": user.username, "extra": userstatus},
+                data={"sub": user.username, "extra": login_data.userstatus},
                 expires_delta=access_token_expires,
             )
             refresh_token = create_refresh_token(
-                data={"sub": user.username, "extra": userstatus},
+                data={"sub": user.username, "extra": login_data.userstatus},
                 expires_delta=access_token_expires,
             )
         case UserStatusEmun.DESK.value:
             access_token = create_access_token(
-                data={"sub": user.desk_number, "extra": userstatus},
+                data={"sub": user.desk_number, "extra": login_data.userstatus},
                 expires_delta=access_token_expires,
             )
             refresh_token = create_refresh_token(
-                data={"sub": user.desk_number, "extra": userstatus},
+                data={"sub": user.desk_number, "extra": login_data.userstatus},
                 expires_delta=access_token_expires,
             )
     if access_token is None:
