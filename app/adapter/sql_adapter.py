@@ -12,8 +12,9 @@ from sqlalchemy import (
     ColumnElement,
     Dialect,
     FunctionElement,
+    Enum as SQLAlchemyEnum,
+    func
 )
-from sqlalchemy import func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
@@ -27,6 +28,7 @@ from app.extension.sql_ext import use_with_create_session
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.orm.scoping import ScopedSession
 from app.extension.sql_ext import scoped_session
+from app.extension.emun_setting import UserStatusEnum
 
 class Base(DeclarativeBase):
     def __repr__(self: "Base") -> str:
@@ -177,11 +179,9 @@ class User(Base):
     )
     username = Column(String)
     _password = Column(BYTEA)
-    email = Column(PGPEncryptString())
+    email = Column(PGPEncryptString(),unique=True, nullable=False)
     info = Column(encrypted_jsonb_type)
-    desk_number = Column(Integer)
-    user_status = Column(Integer, default=0, comment="0:員工用 1:內用")
-    active = Column(Boolean, default=False, comment="0:沒登入用 1:登入用")
+    user_status = Column(SQLAlchemyEnum(UserStatusEnum), default=0, comment="0:員工用 1:內用")#TODO:記得修正用enum
     soft_delete = Column(Boolean, default=False)
     creat_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
     update_dt = Column(
@@ -209,10 +209,42 @@ class User(Base):
         """
         檢查密碼
         """
+        if not self._password:  # 防止 None 值
+            return False
+
         return bcrypt.checkpw(value.encode("utf-8"), self._password)
 
 
 
+class Desk(Base):
+    __tablename__ = "desks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uuid =  uuid = Column(
+        String, server_default=text("uuid_generate_v4()"), index=True
+    )
+    desk_name = Column(String) 
+    soft_delete = Column(Boolean, default=False)
+    creat_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    update_dt = Column(
+        DateTime,
+        server_default=func.timezone("utc", func.now()),
+        onupdate=func.timezone("utc", func.now()),
+    )
 
 
 
+class DeskUser(Base):
+    #訂單成立才key可能不同天同桌同人
+    __tablename__ = "desk_users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    desk_uuid = Column(String)
+    user_uuid = Column(String)
+    soft_delete = Column(Boolean, default=False)
+    creat_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    update_dt = Column(
+        DateTime,
+        server_default=func.timezone("utc", func.now()),
+        onupdate=func.timezone("utc", func.now()),
+    )

@@ -26,3 +26,5 @@
     sudo service docker start
 
     加密 jwt成功
+
+    如果顧客用手機掃描，✅ 用「中介頁面 + JS 發送 POST」最直覺。

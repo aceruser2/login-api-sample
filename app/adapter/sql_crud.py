@@ -7,15 +7,15 @@ import logging
 from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy.sql.expression import false
-from app.adapter.sql_adapter import User
+from app.adapter.sql_adapter import User,Desk
 from sqlalchemy import select, insert
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.extension.emun_setting import UserStatusEmun
-
+from app.adapter.body_schema import LoginData
 log = logging.getLogger(__name__)
 
-
+#TODO:代調整rabc
 def create_user(
     db: Session,
     user_status: int,
@@ -56,12 +56,19 @@ def create_user(
     db.refresh(create_user)
     return create_user
 
+def get_user_by_login_info(db: Session,login_data:LoginData)-> User:
+    """用帳號密碼登入"""
+    if login_data.username:
+        user = get_user_by_username(db, login_data.username)
+    elif login_data.desk:
+        user = get_user_by_desk(db, login_data.desk)
+    return user
+
 
 def get_user_by_username(db: Session, user_name: str)->User:
     return db.execute(
         select(User).where(
             User.username == user_name,
-            User.user_status == UserStatusEmun.STAFF.value,
             User.soft_delete == false(),
         )
     ).scalar()
@@ -69,9 +76,8 @@ def get_user_by_username(db: Session, user_name: str)->User:
 
 def get_user_by_desk(db: Session, desk_number: str)->User:
     return db.execute(
-        select(User).where(
-            User.desk_number == desk_number,
-            User.user_status == UserStatusEmun.DESK.value,
+        select(Desk).where(
+            Desk.number == desk_number,
             User.soft_delete == false(),
         )
     ).scalar()
