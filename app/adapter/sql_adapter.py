@@ -170,7 +170,14 @@ def pgp_sym_decrypt(col: Any) -> FunctionElement:
 
 
 class User(Base):
+    """使用者(店員老闆3-5人)
 
+    Args:
+        Base (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -181,9 +188,8 @@ class User(Base):
     _password = Column(BYTEA)
     email = Column(PGPEncryptString(),unique=True, nullable=False)
     info = Column(encrypted_jsonb_type)
-    user_status = Column(SQLAlchemyEnum(UserStatusEnum), default=0, comment="0:員工用 1:內用")#TODO:記得修正用enum
     soft_delete = Column(Boolean, default=False)
-    creat_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
     update_dt = Column(
         DateTime,
         server_default=func.timezone("utc", func.now()),
@@ -213,8 +219,92 @@ class User(Base):
             return False
 
         return bcrypt.checkpw(value.encode("utf-8"), self._password)
+    
 
+class Role(Base):
+    """餐廳角色跟權限"""
+    __tablename__ = "roles"
 
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uuid = Column(
+        String, server_default=text("uuid_generate_v4()"), index=True
+    )
+    role_name = Column(String)
+    level = Column(Integer)
+    soft_delete = Column(Boolean, default=False)
+    create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    update_dt = Column(
+        DateTime,
+        server_default=func.timezone("utc", func.now()),
+        onupdate=func.timezone("utc", func.now()),
+    )
+
+class RoleUser(Base):
+    __tablename__ = "role_user"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_uuid = Column(String)
+    role_uuid = Column(String)
+    soft_delete = Column(Boolean, default=False)
+    create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    update_dt = Column(
+        DateTime,
+        server_default=func.timezone("utc", func.now()),
+        onupdate=func.timezone("utc", func.now()),
+    )
+
+class Permission(Base):
+    """permission_attributes {"can_edit": true, "can_delete": true, "fields": ["name", "email", "phone"]}
+        edit_user
+    Args:
+        Base (_type_): _description_
+    """
+    __tablename__ = "permissions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uuid = Column(
+        String, server_default=text("uuid_generate_v4()"), index=True
+    )
+    permission_name = Column(String)
+    permission_attributes = Column(JSONB)
+    soft_delete = Column(Boolean, default=False)
+    create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    update_dt = Column(
+        DateTime,
+        server_default=func.timezone("utc", func.now()),
+        onupdate=func.timezone("utc", func.now()),
+    )
+
+class RolePermission(Base):
+    __tablename__ = "role_permission"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    role_uuid = Column(String)
+    permission_uuid = Column(String)
+    soft_delete = Column(Boolean, default=False)
+    create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    update_dt = Column(
+        DateTime,
+        server_default=func.timezone("utc", func.now()),
+        onupdate=func.timezone("utc", func.now()),
+    )
+
+class customer(Base):
+    __tablename__ = "customers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uuid = Column(
+        String, server_default=text("uuid_generate_v4()"), index=True
+    )
+    customer_name = Column(String)
+    customer_phone = Column(String)
+    soft_delete = Column(Boolean, default=False)
+    create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    update_dt = Column(
+        DateTime,
+        server_default=func.timezone("utc", func.now()),
+        onupdate=func.timezone("utc", func.now()),
+    )
 
 class Desk(Base):
     __tablename__ = "desks"
@@ -225,7 +315,7 @@ class Desk(Base):
     )
     desk_name = Column(String) 
     soft_delete = Column(Boolean, default=False)
-    creat_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
     update_dt = Column(
         DateTime,
         server_default=func.timezone("utc", func.now()),
@@ -234,15 +324,15 @@ class Desk(Base):
 
 
 
-class DeskUser(Base):
+class DeskCustomer(Base):
     #訂單成立才key可能不同天同桌同人
-    __tablename__ = "desk_users"
+    __tablename__ = "desk_customer"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     desk_uuid = Column(String)
-    user_uuid = Column(String)
+    customer_uuid = Column(String)
     soft_delete = Column(Boolean, default=False)
-    creat_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
     update_dt = Column(
         DateTime,
         server_default=func.timezone("utc", func.now()),

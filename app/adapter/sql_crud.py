@@ -7,125 +7,196 @@ import logging
 from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy.sql.expression import false
-from app.adapter.sql_adapter import User,Desk
+from app.adapter.sql_adapter import User,RoleUser,Role,Permission,RolePermission
 from sqlalchemy import select, insert
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.extension.emun_setting import UserStatusEmun
 from app.adapter.body_schema import LoginData
 log = logging.getLogger(__name__)
+
+def create_role(db: Session, role_name: str, level: int):
+    """建立角色"""
+    try:
+       create_role = Role(role_name=role_name, level=level)
+       db.add(create_role)
+       db.commit()
+       return create_role
+    except Exception as e:
+        db.rollback()
+        log.error(e)
+        raise HTTPException(status_code=400, detail="create role error")
+
+def create_permission(db: Session, permission_name: str, permission_attributes: dict):
+    """建立權限"""
+    try:
+        create_permission = Permission(permission_name=permission_name, permission_attributes=permission_attributes)
+        db.add(create_permission)
+        db.commit()
+        return create_permission
+    except Exception as e:
+        db.rollback()
+        log.error(e)
+        raise HTTPException(status_code=400, detail="create permission error")
+
+def create_role_permission(db: Session, role_uuid: int, permission_uuid: int):
+    """建立角色權限"""
+    try:
+        create_role_permission = RolePermission(role_uuid=role_uuid, permission_uuid=permission_uuid)
+        db.add(create_role_permission)
+        db.commit()
+        return create_role_permission
+    except Exception as e:
+        db.rollback()
+        log.error(e)
+        raise HTTPException(status_code=400, detail="create role permission error")
+
+
+def get_role_and_permission_by_role_uuid(db: Session, role_uuid: str):
+    """取得角色權限"""
+    try:
+        role = select(Role)\
+            .join(RolePermission, Role.uuid == RolePermission.role_uuid)\
+            .join(Permission, Permission.uuid == RolePermission.permission_uuid)\
+            .where(Role.uuid==role_uuid,Role.soft_delete==false(),Permission.soft_delete==false(),RolePermission.soft_delete==false())
+        return db.execute(role).scalar()
+
+    except Exception as e:
+        db.rollback()
+        log.error(e)
+        raise HTTPException(status_code=400, detail="get role and permission error")
+
+def get_user_all_role_and_permission(db: Session, user_uuid: str,skip: int = 0, limit: int = 10):
+    """取得使用者所有角色權限list"""
+    try:
+        user = select(User)\
+            .join(RoleUser, User.uuid == RoleUser.user_uuid)\
+            .join(Role, Role.uuid == RoleUser.role_uuid)\
+            .join(RolePermission, Role.uuid == RolePermission.role_uuid)\
+            .join(Permission, Permission.uuid == RolePermission.permission_uuid)\
+            .where(User.soft_delete == false(), Role.soft_delete == false(), RolePermission.soft_delete == false(), Permission.soft_delete == false())\
+            .offset(skip)\
+            .limit(limit)
+        
+        total = select(func.count(User.uuid))\
+            .join(RoleUser, User.uuid == RoleUser.user_uuid)\
+            .join(Role, Role.uuid == RoleUser.role_uuid)\
+            .join(RolePermission, Role.uuid == RolePermission.role_uuid)\
+            .join(Permission, Permission.uuid == RolePermission.permission_uuid)\
+            .where(User.soft_delete == false(), Role.soft_delete == false(), RolePermission.soft_delete == false(), Permission.soft_delete == false()) 
+        return {
+            "total": db.execute(total).scalar(),
+            "skip": skip,
+            "limit": limit,
+            "users": db.execute(user).scalars().all()
+        }
+    except Exception as e:
+        db.rollback()
+        log.error(e)
+        raise HTTPException(status_code=400, detail="get user and role and permission error")
+    
+def get_user_all_role_and_permission_by_user_uuid(db: Session, user_uuid: str):
+    """取得使用者所有角色權限"""
+    try:
+        user = select(User)\
+            .join(RoleUser, User.uuid == RoleUser.user_uuid)\
+            .join(Role, Role.uuid == RoleUser.role_uuid)\
+            .join(RolePermission, Role.uuid == RolePermission.role_uuid)\
+            .join(Permission, Permission.uuid == RolePermission.permission_uuid)\
+            .where(User.uuid == user_uuid,User.soft_delete==false(),Role.soft_delete==false(),RolePermission.soft_delete==false(),Permission.soft_delete==false())
+        return db.execute(user).scalar()
+    except Exception as e:
+        db.rollback()
+        log.error(e)
+        raise HTTPException(status_code=400, detail="get user and role and permission error")<
+
+def get_user_by_username(db: Session, username: str):
+    """取得使用者"""
+    try:
+        user = select(User).where(User.username == username, User.soft_delete == false())
+        return db.execute(user).scalar()
+    except Exception as e:
+        db.rollback()
+        log.error(e)
+        raise HTTPException(status_code=400, detail="get user error")
+   
+
 
 #TODO:代調整rabc
 def create_user(
     db: Session,
-    user_status: int,
     username: str,
-    desk_number: str,
     password: str,
     email: str = None,
     gender: str = None,
-    ture_name: str = None,
+    true_name: str = None,
+    role_uuid: int = None,
 ):
     """用sqlalchemy建立使用者的函式
-    0:員工用,1:內用
+    員工用
     """
-    create_user = None
-
-    match user_status:
-        case UserStatusEmun.STAFF.value:
-            if username == "" or username is None:
-                raise HTTPException(status_code=400, detail="username error")
-            if get_user_by_username(db, username) is not None:
-                raise HTTPException(status_code=400, detail="username already exist")
-            info_data = {"gender": gender, "true_name": ture_name}
-            create_user = User(
-                user_status=user_status, username=username, email=email, info=info_data
-            )
-        case UserStatusEmun.DESK.value:
-            if desk_number == "" or username is None:
-                raise HTTPException(status_code=400, detail="desk_number error")
-            if get_user_by_desk(db, desk_number) is not None:
-                raise HTTPException(status_code=400, detail="desk_number already exist")
-            create_user = User(user_status=user_status, desk_number=desk_number)
-
-        case _:
-            raise HTTPException(status_code=400, detail="user_status error")
-    create_user.password(password)
-    db.add(create_user)
-    db.commit(create_user)
-    db.refresh(create_user)
-    return create_user
-
-def get_user_by_login_info(db: Session,login_data:LoginData)-> User:
-    """用帳號密碼登入"""
-    if login_data.username:
-        user = get_user_by_username(db, login_data.username)
-    elif login_data.desk:
-        user = get_user_by_desk(db, login_data.desk)
-    return user
-
-
-def get_user_by_username(db: Session, user_name: str)->User:
-    return db.execute(
-        select(User).where(
-            User.username == user_name,
-            User.soft_delete == false(),
+    try:
+        role = get_role_and_permission_by_role_uuid(db, role_uuid)
+        if role is None:
+            raise HTTPException(status_code=400, detail="role not found")
+        if username == "" or username is None:
+            raise HTTPException(status_code=400, detail="username error")
+        if get_user_by_username(db, username) is not None:
+            raise HTTPException(status_code=400, detail="username already exist")
+        info_data = {"gender": gender, "true_name": true_name}
+        create_user = User(
+            username=username, email=email, info=info_data
         )
-    ).scalar()
+        create_user.password(password)
+        db.add(create_user)
+        role_user=RoleUser(user_uuid=create_user.uuid, role_uuid=role.uuid)
+        db.add(role_user)
+        db.commit()
+        db.flush()
+        return_user=get_user_all_role_and_permission_by_user_uuid(db, create_user.uuid)
+        return return_user
+    except Exception as e:
+        db.rollback()
+        log.error(e)
+        raise HTTPException(status_code=400, detail="create user error")
+
+def get_user_by_uuid(db: Session, user_uuid: str):
+    """取得使用者"""
+    try:
+        user = select(User).where(User.uuid == user_uuid, User.soft_delete == false())
+        return db.execute(user).scalar()
+    except Exception as e:
+        db.rollback()
+        log.error(e)
+        raise HTTPException(status_code=400, detail="get user error")
+
+def get_role_user_by_user_uuid(db: Session, user_uuid: str):
+    """取得使用者角色"""
+    try:
+        role_user = select(RoleUser).where(RoleUser.user_uuid == user_uuid, RoleUser.soft_delete == false())
+        return db.execute(role_user).scalars().all()
+    except Exception as e:
+        db.rollback()
+        log.error(e)
+        raise HTTPException(status_code=400, detail="get role user error")
 
 
-def get_user_by_desk(db: Session, desk_number: str)->User:
-    return db.execute(
-        select(Desk).where(
-            Desk.number == desk_number,
-            User.soft_delete == false(),
-        )
-    ).scalar()
-
-
-def get_user_by_uuid(db: Session, user_uuid: UUID):
-    return db.execute(
-        select(User).where(User.uuid == user_uuid, User.soft_delete == false())
-    ).scalar()
-
-
-def get_users(db: Session, skip: int = 0, limit: int = 10):
-    """return total and list"""
-    users = (
-        db.execute(
-            select(User).where(User.soft_delete == false()).offset(skip).limit(limit)
-        )
-        .scalars()
-        .all()
-    )
-    total = db.execute(
-        select(func.count(User.id)).where(User.soft_delete == false())
-    ).scalars()
-    return {"total": total, "skip": skip, "limit": limit, "users": users}
-
-
-def update_user(
-    db: Session, user_uuid: UUID, user_status: int, username: str, desk_number: str
-):
-    """update user"""
-
-    update_user = get_user_by_uuid(db, user_uuid)
-    if update_user is None:
-        raise HTTPException(status_code=400, detail="user not found")
-    update_user.user_status = user_status
-    update_user.username = username
-    update_user.desk_number = desk_number
-    db.commit()
-    db.flush()
-    return update_user
-
-
-def delete_user(db: Session, user_uuid: UUID):
+def delete_user(db: Session, user_uuid: str):
     """delete user"""
-    delete_user = get_user_by_uuid(db, user_uuid)
-    if delete_user is None:
-        raise HTTPException(status_code=400, detail="user not found")
-    delete_user.soft_delete = True
-    db.commit()
-    db.flush()
-    return delete_user
+    try: 
+        if user_uuid is None:
+            raise HTTPException(status_code=400, detail="user_uuid is None")
+        
+        for i in get_role_user_by_user_uuid(db, user_uuid):
+            i.soft_delete = True
+
+        delete_user = get_user_by_uuid(db, user_uuid)
+        if delete_user is None:
+            raise HTTPException(status_code=400, detail="user not found")
+        delete_user.soft_delete = True
+        db.commit()
+        db.flush()
+        return delete_user
+    except Exception as e:
+        db.rollback()
+        log.error(e)
+        raise HTTPException(status_code=400, detail="delete user error")
