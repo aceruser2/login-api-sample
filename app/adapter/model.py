@@ -13,7 +13,7 @@ from sqlalchemy import (
     Dialect,
     FunctionElement,
     Enum as SQLAlchemyEnum,
-    func
+    func,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.postgresql import UUID
@@ -21,7 +21,7 @@ from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy.dialects.postgresql import BYTEA, JSON, JSONB
 from sqlalchemy.sql.operators import OperatorType
 from sqlalchemy import event
-from typing import Any, ClassVar,Dict
+from typing import Any, ClassVar, Dict
 from app.config import sqlconn
 from sqlalchemy.orm import DeclarativeBase
 from app.extension.sql_ext import use_with_create_session
@@ -29,6 +29,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.orm.scoping import ScopedSession
 from app.extension.sql_ext import scoped_session
 from app.extension.emun_setting import UserStatusEnum
+
 
 class Base(DeclarativeBase):
     def __repr__(self: "Base") -> str:
@@ -89,6 +90,7 @@ class PGPEncryptString(TypeDecorator):
     def column_expression(self: "PGPEncryptString", col: Any):
         return pgp_sym_decrypt(col)
 
+
 class PGPEncryptJSONB(TypeDecorator):
     impl = JSONB
     cache_ok = True
@@ -136,7 +138,7 @@ class PGPEncryptJSONB(TypeDecorator):
             return {k: self.decrypt_value(v) for k, v in val.items()}
         if isinstance(val, list):
             return [self.decrypt_value(v) for v in val]
-         
+
         return session.query(
             func.pgp_sym_decrypt(
                 val,
@@ -160,7 +162,8 @@ class PGPEncryptJSONB(TypeDecorator):
         if value is None:
             return value
         return self.decrypt_value(value)
-    
+
+
 encrypted_jsonb_type = PGPEncryptJSONB(scoped_session=scoped_session)
 
 
@@ -178,15 +181,14 @@ class User(Base):
     Returns:
         _type_: _description_
     """
+
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    uuid = Column(
-        String, server_default=text("uuid_generate_v4()"), index=True
-    )
+    uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
     username = Column(String)
     _password = Column(BYTEA)
-    email = Column(PGPEncryptString(),unique=True, nullable=False)
+    email = Column(PGPEncryptString(), unique=True, nullable=False)
     info = Column(encrypted_jsonb_type)
     soft_delete = Column(Boolean, default=False)
     create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
@@ -219,16 +221,15 @@ class User(Base):
             return False
 
         return bcrypt.checkpw(value.encode("utf-8"), self._password)
-    
+
 
 class Role(Base):
     """餐廳角色跟權限"""
+
     __tablename__ = "roles"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    uuid = Column(
-        String, server_default=text("uuid_generate_v4()"), index=True
-    )
+    uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
     role_name = Column(String)
     level = Column(Integer)
     soft_delete = Column(Boolean, default=False)
@@ -238,6 +239,7 @@ class Role(Base):
         server_default=func.timezone("utc", func.now()),
         onupdate=func.timezone("utc", func.now()),
     )
+
 
 class RoleUser(Base):
     __tablename__ = "role_user"
@@ -253,18 +255,18 @@ class RoleUser(Base):
         onupdate=func.timezone("utc", func.now()),
     )
 
+
 class Permission(Base):
     """permission_attributes {"can_edit": true, "can_delete": true, "fields": ["name", "email", "phone"]}
         edit_user
     Args:
         Base (_type_): _description_
     """
+
     __tablename__ = "permissions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    uuid = Column(
-        String, server_default=text("uuid_generate_v4()"), index=True
-    )
+    uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
     permission_name = Column(String)
     permission_attributes = Column(JSONB)
     soft_delete = Column(Boolean, default=False)
@@ -274,6 +276,7 @@ class Permission(Base):
         server_default=func.timezone("utc", func.now()),
         onupdate=func.timezone("utc", func.now()),
     )
+
 
 class RolePermission(Base):
     __tablename__ = "role_permission"
@@ -289,13 +292,12 @@ class RolePermission(Base):
         onupdate=func.timezone("utc", func.now()),
     )
 
+
 class customer(Base):
     __tablename__ = "customers"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    uuid = Column(
-        String, server_default=text("uuid_generate_v4()"), index=True
-    )
+    uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
     customer_name = Column(String)
     customer_phone = Column(String)
     soft_delete = Column(Boolean, default=False)
@@ -306,14 +308,13 @@ class customer(Base):
         onupdate=func.timezone("utc", func.now()),
     )
 
+
 class Desk(Base):
     __tablename__ = "desks"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    uuid =  uuid = Column(
-        String, server_default=text("uuid_generate_v4()"), index=True
-    )
-    desk_name = Column(String) 
+    uuid = uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
+    desk_name = Column(String)
     soft_delete = Column(Boolean, default=False)
     create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
     update_dt = Column(
@@ -323,9 +324,8 @@ class Desk(Base):
     )
 
 
-
 class DeskCustomer(Base):
-    #訂單成立才key可能不同天同桌同人
+    # 訂單成立才key可能不同天同桌同人
     __tablename__ = "desk_customer"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

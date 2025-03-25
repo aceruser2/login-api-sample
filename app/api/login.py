@@ -5,18 +5,18 @@ from starlette.responses import JSONResponse
 from app import app
 from app.handler.for_map import auth
 from app.config import JwtEnv
-from app.adapter import sql_crud
+from app.adapter import user
 from typing import Annotated
 from app.extension.sql_ext import get_session, Session
-from app.adapter.body_schema import Token, LoginToken,LoginData
+from app.adapter.schema import Token, LoginToken,LoginData
 from app.extension.jwt_config import (
     create_access_token,
     get_current_user,
     create_refresh_token,
     refresh_get_current_user,
 )
-from app.adapter.body_schema import UserData
-from app.adapter.sql_adapter import User
+from app.adapter.schema import UserData
+from app.adapter.model import User
 
 #TODO: rabc待調整
 @app.post("/token")
@@ -46,7 +46,7 @@ async def login_for_access_token(
         LoginToken: _description_
     """
 
-    user: User = sql_crud.get_user_by_login_info(db, login_data)
+    user: User = user.get_user_by_login_info(db, login_data)
    
     if not user: 
         raise HTTPException(

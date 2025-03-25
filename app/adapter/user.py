@@ -7,11 +7,11 @@ import logging
 from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy.sql.expression import false
-from app.adapter.sql_adapter import User,RoleUser,Role,Permission,RolePermission
+from app.adapter.model import User,RoleUser,Role,Permission,RolePermission
 from sqlalchemy import select, insert
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.adapter.body_schema import LoginData
+from app.adapter.schema import LoginData
 log = logging.getLogger(__name__)
 
 def create_role(db: Session, role_name: str, level: int):
@@ -119,9 +119,6 @@ def get_user_by_username(db: Session, username: str):
         log.error(e)
         raise HTTPException(status_code=400, detail="get user error")
    
-
-
-#TODO:代調整rabc
 def create_user(
     db: Session,
     username: str,

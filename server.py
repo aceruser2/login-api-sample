@@ -2,11 +2,11 @@ import os
 import uvicorn
 import logging.config
 from app import logging_config
-from app.adapter.sql_adapter import User
-from app.adapter.sql_crud import get_user_by_username
+from app.adapter.model import User
+from app.adapter.user import get_user_by_username
 from app import app
 from app.config import HostConfig
-from app.adapter.sql_adapter import Base
+from app.adapter.model import Base
 from app.extension.sql_ext import db_engine, use_with_create_session
 from fastapi.middleware.cors import CORSMiddleware
 
