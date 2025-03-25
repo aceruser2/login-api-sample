@@ -57,6 +57,19 @@ def create_refresh_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
+def generate_tokens(user_uuid: str, extra_data: dict = None):
+    access_token_expires = timedelta(minutes=JwtEnv.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user_uuid, **(extra_data or {})},
+        expires_delta=access_token_expires,
+    )
+    refresh_token = create_refresh_token(
+        data={"sub": user_uuid},
+        expires_delta=access_token_expires,
+    )
+    return access_token, refresh_token
+
+
 async def get_current_user(
     bearer: HTTPAuthorizationCredentials = Depends(auth_scheme),
     db: Session = Depends(get_session),
@@ -111,10 +124,8 @@ async def refresh_get_current_user(
         refresh_token = None
         if bearer:
             refresh_token = str(bearer.credentials)
-        print(refresh_token)
         if not refresh_token:
             raise credentials_exception
-        print(1)
         payload = jwt.decode(
             refresh_token,
             JwtEnv.SECRET_KEY,
@@ -122,7 +133,6 @@ async def refresh_get_current_user(
         )
         user_or_desk: str = payload.get("sub")
         user_status: str = payload.get("extra")
-        print(user_or_desk, user_status)
         if user_or_desk is None or user_status is None:
             raise credentials_exception
         token_data = TokenData(user_or_desk=user_or_desk, extra=user_status)

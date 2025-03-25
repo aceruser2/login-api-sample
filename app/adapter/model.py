@@ -293,7 +293,7 @@ class RolePermission(Base):
     )
 
 
-class customer(Base):
+class Customer(Base):
     __tablename__ = "customers"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -313,7 +313,7 @@ class Desk(Base):
     __tablename__ = "desks"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    uuid = uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
+    uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
     desk_name = Column(String)
     soft_delete = Column(Boolean, default=False)
     create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))

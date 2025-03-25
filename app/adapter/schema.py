@@ -2,7 +2,6 @@ from typing import List, Optional, Union, Dict
 from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
-from app.config import JwtEnv
 
 
 class Token(BaseModel):
@@ -37,3 +36,9 @@ class LoginData(BaseModel):
     password: str
     desk: Optional[str] = None
     username: Optional[str] = None
+
+
+class CustomLoginData(BaseModel):
+    custom_name: str
+    phone: str
+    use_in_restaurants: bool
