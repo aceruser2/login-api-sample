@@ -143,7 +143,7 @@ def create_user(
         create_user = User(
             username=username, email=email, info=info_data
         )
-        create_user.password(password)
+        create_user.password=password
         db.add(create_user)
         role_user=RoleUser(user_uuid=create_user.uuid, role_uuid=role.uuid)
         db.add(role_user)
