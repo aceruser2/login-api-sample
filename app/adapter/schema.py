@@ -42,3 +42,22 @@ class CustomLoginData(BaseModel):
     custom_name: str
     phone: str
     use_in_restaurants: bool
+
+
+class DeskBindingRequest(BaseModel):
+    customer_phone: str
+    desk_uuid: str
+
+
+class DeskBindingResponse(BaseModel):
+    desk_uuid: str
+    customer_uuid: UUID
+    create_dt: datetime
+
+
+class ReleaseBindingRequest(BaseModel):
+    customer_phone: str
+
+
+class ReleaseBindingResponse(BaseModel):
+    message: str

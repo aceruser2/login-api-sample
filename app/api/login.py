@@ -1,5 +1,5 @@
 from datetime import timedelta
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, APIRouter
 from app import app
 from app.config import JwtEnv
 from app.adapter.user import get_user_by_username
@@ -7,14 +7,29 @@ from app.adapter.custom import (
     get_customer_by_phone,
     create_customer,
     create_desk_customer,
+    bind_desk_to_customer,
+    get_active_binding,
+    release_binding,
 )
 from app.adapter.desk import get_desk_by_uuid
 from app.extension.sql_ext import get_session, Session
-from app.adapter.schema import Token, LoginToken, LoginData, UserData, CustomLoginData
+from app.adapter.schema import (
+    Token,
+    LoginToken,
+    LoginData,
+    UserData,
+    CustomLoginData,
+    DeskBindingRequest,
+    DeskBindingResponse,
+    ReleaseBindingRequest,
+    ReleaseBindingResponse,
+)
 from app.extension.jwt_config import create_access_token, create_refresh_token
 from app.adapter.model import User, RoleUser, RolePermission, Permission
 from app.extension.jwt_config import refresh_get_current_user
+from app.dependencies import get_db
 
+router = APIRouter()
 
 def generate_tokens(user_uuid: str, extra_data: dict = None):
     access_token_expires = timedelta(minutes=JwtEnv.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -101,3 +116,30 @@ def refresh(
 ) -> Token:
     access_token, _ = generate_tokens(refresh_get_current_user.uuid)
     return Token(access_token=access_token, token_type="bearer")
+
+
+@router.post("/desk-customer/", response_model=DeskBindingResponse)
+def bind_desk(request: DeskBindingRequest, db: Session = Depends(get_db)):
+    """Bind a desk to a customer"""
+    binding = bind_desk_to_customer(db, request.customer_phone, request.desk_uuid)
+    return DeskBindingResponse(
+        desk_uuid=binding.desk_uuid,
+        customer_uuid=binding.customer_uuid,
+        create_dt=binding.create_dt
+    )
+
+@router.get("/desk-customer/active", response_model=DeskBindingResponse)
+def get_active_desk_binding(customer_phone: str, db: Session = Depends(get_db)):
+    """Retrieve active desk binding for a customer"""
+    binding = get_active_binding(db, customer_phone)
+    return DeskBindingResponse(
+        desk_uuid=binding.desk_uuid,
+        customer_uuid=binding.customer_uuid,
+        create_dt=binding.create_dt
+    )
+
+@router.post("/desk-customer/release", response_model=ReleaseBindingResponse)
+def release_desk(request: ReleaseBindingRequest, db: Session = Depends(get_db)):
+    """Release desk binding for a customer"""
+    release_result = release_binding(db, request.customer_phone)
+    return ReleaseBindingResponse(message=release_result["message"])

@@ -15,8 +15,7 @@ def create_customer(db: Session, customer_name: str, customer_phone: str):
     try:
         existing_customer = db.execute(
             select(Customer).where(
-                Customer.customer_phone == customer_phone,
-                Customer.soft_delete == False
+                Customer.customer_phone == customer_phone, Customer.soft_delete == False
             )
         ).scalar()
 
@@ -24,8 +23,7 @@ def create_customer(db: Session, customer_name: str, customer_phone: str):
             return existing_customer
 
         new_customer = Customer(
-            customer_name=customer_name,
-            customer_phone=customer_phone
+            customer_name=customer_name, customer_phone=customer_phone
         )
         db.add(new_customer)
         db.commit()
@@ -41,8 +39,7 @@ def get_customer_by_phone(db: Session, customer_phone: str):
     try:
         customer = db.execute(
             select(Customer).where(
-                Customer.customer_phone == customer_phone,
-                Customer.soft_delete == False
+                Customer.customer_phone == customer_phone, Customer.soft_delete == False
             )
         ).scalar()
         if not customer:
@@ -58,8 +55,7 @@ def get_customer_by_uuid(db: Session, customer_uuid: str):
     try:
         customer = db.execute(
             select(Customer).where(
-                Customer.uuid == customer_uuid,
-                Customer.soft_delete == False
+                Customer.uuid == customer_uuid, Customer.soft_delete == False
             )
         ).scalar()
         if not customer:
@@ -80,7 +76,7 @@ def create_desk_customer(db: Session, desk_uuid: str, customer_uuid: str):
             select(DeskCustomer).where(
                 DeskCustomer.customer_uuid == customer_uuid,
                 DeskCustomer.soft_delete == False,
-                DeskCustomer.create_dt >= one_hour_ago
+                DeskCustomer.create_dt >= one_hour_ago,
             )
         ).scalar()
 
@@ -111,7 +107,7 @@ def get_active_desk_customer(db: Session, customer_phone: str):
             select(DeskCustomer).where(
                 DeskCustomer.customer_uuid == customer.uuid,
                 DeskCustomer.soft_delete == False,
-                DeskCustomer.create_dt >= one_hour_ago
+                DeskCustomer.create_dt >= one_hour_ago,
             )
         ).scalar()
 
@@ -131,7 +127,7 @@ def release_desk_binding(db: Session, customer_uuid: str):
         desk_customer = db.execute(
             select(DeskCustomer).where(
                 DeskCustomer.customer_uuid == customer_uuid,
-                DeskCustomer.soft_delete == False
+                DeskCustomer.soft_delete == False,
             )
         ).scalar()
 
@@ -147,7 +143,12 @@ def release_desk_binding(db: Session, customer_uuid: str):
         raise HTTPException(status_code=400, detail="release desk binding error")
 
 
-def update_customer(db: Session, customer_uuid: str, customer_name: str = None, customer_phone: str = None):
+def update_customer(
+    db: Session,
+    customer_uuid: str,
+    customer_name: str = None,
+    customer_phone: str = None,
+):
     try:
         customer_data = get_customer_by_uuid(db, customer_uuid)
         if customer_name:
@@ -174,3 +175,32 @@ def delete_customer(db: Session, customer_uuid: str):
         db.rollback()
         log.error(e)
         raise HTTPException(status_code=400, detail="delete customer error")
+
+
+def bind_desk_to_customer(db: Session, customer_phone: str, desk_uuid: str):
+    """Bind a desk to a customer for dine-in"""
+    try:
+        customer = get_customer_by_phone(db, customer_phone)
+        return create_desk_customer(db, desk_uuid, customer.uuid)
+    except Exception as e:
+        log.error(e)
+        raise HTTPException(status_code=400, detail="bind desk to customer error")
+
+
+def get_active_binding(db: Session, customer_phone: str):
+    """Retrieve active desk binding for a customer"""
+    try:
+        return get_active_desk_customer(db, customer_phone)
+    except Exception as e:
+        log.error(e)
+        raise HTTPException(status_code=400, detail="get active binding error")
+
+
+def release_binding(db: Session, customer_phone: str):
+    """Release desk binding for a customer"""
+    try:
+        customer = get_customer_by_phone(db, customer_phone)
+        return release_desk_binding(db, customer.uuid)
+    except Exception as e:
+        log.error(e)
+        raise HTTPException(status_code=400, detail="release binding error")
