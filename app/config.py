@@ -30,3 +30,37 @@ class sqlconn(object):
         "dbconn", "postgresql+psycopg2://user:password@localhost/dbname"
     )
     pgp_pass = os.environ.get("PGP_PASSPHRASE", "gdfgshshtfdjdhdjdgds")
+
+
+class AdminConfig:
+    """Admin user configuration"""
+
+    USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
+    PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
+    EMAIL = os.environ.get("ADMIN_EMAIL", "admin@example.com")
+    ROLE_NAME = os.environ.get("ADMIN_ROLE", "admin")
+    ROLE_LEVEL = int(os.environ.get("ADMIN_ROLE_LEVEL", "9"))
+    PERMISSIONS = {
+        "user_manage": {
+            "can_create": True,
+            "can_read": True,
+            "can_update": True,
+            "can_delete": True,
+        },
+        "role_manage": {
+            "can_create": True,
+            "can_read": True,
+            "can_update": True,
+            "can_delete": True,
+        },
+    }
+
+
+class EmailConfig:
+    """Email configuration"""
+
+    MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "your-email@gmail.com")
+    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "your-app-password")
+    MAIL_FROM = os.environ.get("MAIL_FROM", "your-email@gmail.com")
+    MAIL_PORT = int(os.environ.get("MAIL_PORT", 587))
+    MAIL_SERVER = os.environ.get("MAIL_SERVER", "smtp.gmail.com")

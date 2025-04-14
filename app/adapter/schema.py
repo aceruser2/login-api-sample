@@ -32,15 +32,14 @@ class UserData(BaseModel):
 
 
 class LoginData(BaseModel):
-    userstatus: int
     password: str
-    desk: Optional[str] = None
     username: Optional[str] = None
 
 
 class CustomLoginData(BaseModel):
     custom_name: str
     phone: str
+    email: str
     use_in_restaurants: bool
 
 

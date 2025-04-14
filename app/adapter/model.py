@@ -300,6 +300,7 @@ class Customer(Base):
     uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
     customer_name = Column(String)
     customer_phone = Column(String)
+    email = Column(String, unique=True)
     soft_delete = Column(Boolean, default=False)
     create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
     update_dt = Column(

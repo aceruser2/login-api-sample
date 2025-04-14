@@ -8,10 +8,9 @@ from pydantic import BaseModel
 import bcrypt
 from app.config import JwtEnv
 from app.adapter.schema import TokenData
-from app.adapter.user import get_user_by_desk, get_user_by_username
+from app.adapter.user import  get_user_by_username
 from sqlalchemy.orm import Session
 from app.extension.sql_ext import get_session
-from app.extension.emun_setting import UserStatusEmun
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 app = FastAPI()
