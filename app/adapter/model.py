@@ -339,3 +339,149 @@ class DeskCustomer(Base):
         server_default=func.timezone("utc", func.now()),
         onupdate=func.timezone("utc", func.now()),
     )
+
+
+class MenuItem(Base):
+    """菜單項目"""
+
+    __tablename__ = "menu_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
+    name = Column(String, nullable=False)
+    description = Column(String)
+    price = Column(Integer, nullable=False)
+    category = Column(String)  # 分類:主餐、飲料、甜點等
+    image_url = Column(String)
+    available = Column(Boolean, default=True)  # 是否供應中
+    soft_delete = Column(Boolean, default=False)
+    create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    update_dt = Column(
+        DateTime,
+        server_default=func.timezone("utc", func.now()),
+        onupdate=func.timezone("utc", func.now()),
+    )
+
+
+class Order(Base):
+    """訂單主表"""
+
+    __tablename__ = "orders"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
+    customer_uuid = Column(String)
+    desk_uuid = Column(String)  # 內用才有
+    total_amount = Column(Integer, default=0)
+    status = Column(String)  # pending, cooking, completed, cancelled
+    order_type = Column(String)  # dine-in, takeout
+    note = Column(String)  # 訂單備註
+    soft_delete = Column(Boolean, default=False)
+    create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    update_dt = Column(
+        DateTime,
+        server_default=func.timezone("utc", func.now()),
+        onupdate=func.timezone("utc", func.now()),
+    )
+
+
+class OrderItem(Base):
+    """訂單明細"""
+
+    __tablename__ = "order_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
+    order_uuid = Column(String)
+    item_uuid = Column(String)  # 對應到 MenuItem
+    quantity = Column(Integer)
+    unit_price = Column(Integer)  # 紀錄當時單價
+    subtotal = Column(Integer)  # 小計
+    note = Column(String)  # 客製化需求備註
+    status = Column(String)  # pending, cooking, completed
+    soft_delete = Column(Boolean, default=False)
+    create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    update_dt = Column(
+        DateTime,
+        server_default=func.timezone("utc", func.now()),
+        onupdate=func.timezone("utc", func.now()),
+    )
+
+
+class Ingredient(Base):
+    """食材/原料"""
+
+    __tablename__ = "ingredients"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
+    name = Column(String, nullable=False)
+    description = Column(String)
+    unit = Column(String)  # 單位:公斤、公升等
+    min_stock = Column(Integer)  # 最低庫存警告
+    soft_delete = Column(Boolean, default=False)
+    create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    update_dt = Column(
+        DateTime,
+        server_default=func.timezone("utc", func.now()),
+        onupdate=func.timezone("utc", func.now()),
+    )
+
+
+class Stock(Base):
+    """庫存異動記錄"""
+
+    __tablename__ = "stocks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
+    ingredient_uuid = Column(String)
+    quantity = Column(Integer)  # 正數為入庫、負數為出庫
+    type = Column(String)  # purchase(採購), consumption(消耗), loss(損耗)
+    note = Column(String)
+    soft_delete = Column(Boolean, default=False)
+    create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    update_dt = Column(
+        DateTime,
+        server_default=func.timezone("utc", func.now()),
+        onupdate=func.timezone("utc", func.now()),
+    )
+
+
+class MenuItemIngredient(Base):
+    """菜單品項與原料的關聯表"""
+
+    __tablename__ = "menu_item_ingredients"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
+    menu_item_uuid = Column(String)
+    ingredient_uuid = Column(String)
+    quantity = Column(Integer)  # 一份所需的原料量
+    soft_delete = Column(Boolean, default=False)
+    create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    update_dt = Column(
+        DateTime,
+        server_default=func.timezone("utc", func.now()),
+        onupdate=func.timezone("utc", func.now()),
+    )
+
+
+class Payment(Base):
+    """支付紀錄"""
+
+    __tablename__ = "payments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
+    order_uuid = Column(String)
+    payment_method = Column(String)  # 付款方式
+    amount_paid = Column(Integer)  # 實收金額
+    payment_note = Column(String)  # 付款備註
+    soft_delete = Column(Boolean, default=False)
+    create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
+    update_dt = Column(
+        DateTime,
+        server_default=func.timezone("utc", func.now()),
+        onupdate=func.timezone("utc", func.now()),
+    )

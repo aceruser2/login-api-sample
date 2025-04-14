@@ -49,44 +49,37 @@ def delete_user(
         )
 
 
-@app.post("/create_user/", response_model=schema.UserData)
+@app.post("/creat_user/", response_model=schema.UserData)
 def create_user(
     db: Session = Depends(get_session),
     current_user: schema.UserData = Depends(get_current_user),
+    user_status: int = 0,
     username: str = None,
+    desk_number: str = None,
     password: str = None,
     email: Optional[str] = None,
     gender: Optional[int] = None,
     true_name: Optional[str] = None,
-    role_uuid: Optional[str] = None,
+    info: Optional[Dict] = None,
 ):
-    """Create a new user"""
-    try:
-        if not username or not password:
-            raise HTTPException(
-                status_code=400, detail="Username and password are required"
-            )
-        if not email:
-            raise HTTPException(status_code=400, detail="Email is required")
+    if not username or not password:
+        return JSONResponse(
+            status_code=400, content={"message": "Username and password are required"}
+        )
 
-        new_user = user.create_user(
-            db=db,
+    try:
+        user = user.create_user(
+            user_status=user_status,
             username=username,
+            desk_number=desk_number,
             password=password,
             email=email,
             gender=gender,
             true_name=true_name,
-            role_uuid=role_uuid,
+            info=info,
+            db=db,
         )
-        return new_user
-    except HTTPException as e:
-        log.error(f"HTTP error: {e.detail}")
-        raise e
-    except IntegrityError as e:
-        log.error(f"Integrity error: {str(e)}")
-        raise HTTPException(
-            status_code=400, detail="User with this email or username already exists"
-        )
+        return user
     except Exception as e:
-        log.critical(f"Unexpected error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        log.critical(e, exc_info=True)
+        return JSONResponse(status_code=500, content={"message": str(e)})

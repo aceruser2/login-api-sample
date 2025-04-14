@@ -60,3 +60,102 @@ class ReleaseBindingRequest(BaseModel):
 
 class ReleaseBindingResponse(BaseModel):
     message: str
+
+
+class MenuItemCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    price: int
+    category: str
+    image_url: Optional[str] = None
+
+
+class MenuItemUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[int] = None
+    category: Optional[str] = None
+    image_url: Optional[str] = None
+    available: Optional[bool] = None
+
+
+class MenuItemResponse(BaseModel):
+    uuid: str
+    name: str
+    description: Optional[str]
+    price: int
+    category: str
+    image_url: Optional[str]
+    available: bool
+    create_dt: datetime
+    update_dt: datetime
+
+
+class OrderItemCreate(BaseModel):
+    item_uuid: str
+    quantity: int
+    note: Optional[str] = None
+
+
+class OrderItemResponse(BaseModel):
+    uuid: str
+    item_uuid: str
+    order_uuid: str
+    quantity: int
+    subtotal: int
+    note: Optional[str]
+    item_name: str
+    item_price: int
+    create_dt: datetime
+    update_dt: datetime
+
+
+class OrderCreate(BaseModel):
+    customer_uuid: str
+    desk_uuid: Optional[str] = None
+    order_type: str
+    note: Optional[str] = None
+    items: list[OrderItemCreate]
+
+
+class OrderResponse(BaseModel):
+    uuid: str
+    customer_uuid: str
+    desk_uuid: Optional[str]
+    total_amount: int
+    status: str
+    order_type: str
+    note: Optional[str]
+    items: list[OrderItemResponse]
+    create_dt: datetime
+    update_dt: datetime
+
+
+class PaymentCreate(BaseModel):
+    order_uuid: str
+    payment_method: str  # cash, credit_card, line_pay etc
+    amount_paid: int
+    payment_note: Optional[str] = None
+
+
+class PaymentResponse(BaseModel):
+    uuid: str
+    order_uuid: str
+    payment_method: str
+    amount_paid: int
+    payment_note: Optional[str]
+    create_dt: datetime
+
+
+class DailySalesReport(BaseModel):
+    date: datetime
+    total_sales: int
+    total_orders: int
+    average_order_value: float
+
+
+class PopularItemReport(BaseModel):
+    item_uuid: str
+    item_name: str
+    quantity_sold: int
+    total_sales: int
