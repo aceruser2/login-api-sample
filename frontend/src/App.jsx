@@ -50,6 +50,7 @@ function App() {
                 </Layout>
               </ProtectedRoute>
             } />
+            <Route path="*" element={<Navigate to="/login" />} /> {/* Add this line */}
           </Routes>
         </BrowserRouter>
       </AuthProvider>
