@@ -6,7 +6,7 @@ from fastapi import HTTPException
 
 
 def create_menu_item(db: Session, item: MenuItemCreate):
-    db_item = MenuItem(**item.dict())
+    db_item = MenuItem(**item.model_dump())
     try:
         db.add(db_item)
         db.commit()
@@ -34,7 +34,7 @@ def update_menu_item(db: Session, item_uuid: str, item: MenuItemUpdate):
     if not db_item:
         raise HTTPException(status_code=404, detail="Menu item not found")
 
-    for field, value in item.dict(exclude_unset=True).items():
+    for field, value in item.model_dump(exclude_unset=True).items():
         setattr(db_item, field, value)
 
     db.commit()

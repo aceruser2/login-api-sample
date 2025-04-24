@@ -28,7 +28,7 @@ from app.extension.sql_ext import use_with_create_session
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.orm.scoping import ScopedSession
 from app.extension.sql_ext import scoped_session
-from app.extension.emun_setting import UserStatusEnum
+from app.extension.emun_setting import UserStatusEnum, OrderStatusEnum, StockTypeEnum
 
 
 class Base(DeclarativeBase):
@@ -298,9 +298,9 @@ class Customer(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
-    customer_name = Column(String)
-    customer_phone = Column(String)
-    email = Column(String, unique=True)
+    customer_name = Column(PGPEncryptString())
+    customer_phone = Column(PGPEncryptString())
+    email = Column(PGPEncryptString(), unique=True)
     soft_delete = Column(Boolean, default=False)
     create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))
     update_dt = Column(
@@ -373,7 +373,9 @@ class Order(Base):
     customer_uuid = Column(String)
     desk_uuid = Column(String)  # 內用才有
     total_amount = Column(Integer, default=0)
-    status = Column(String)  # pending, cooking, completed, cancelled
+    status = Column(
+        Integer
+    )  # 0: pending, 1: cooking, 2: completed, 3: cancelled (see OrderStatusEnum)
     order_type = Column(String)  # dine-in, takeout
     note = Column(String)  # 訂單備註
     soft_delete = Column(Boolean, default=False)
@@ -437,7 +439,9 @@ class Stock(Base):
     uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
     ingredient_uuid = Column(String)
     quantity = Column(Integer)  # 正數為入庫、負數為出庫
-    type = Column(String)  # purchase(採購), consumption(消耗), loss(損耗)
+    stock_type = Column(
+        Integer
+    )  # 0: purchase, 1: consumption, 2: loss (see StockTypeEnum)
     note = Column(String)
     soft_delete = Column(Boolean, default=False)
     create_dt = Column(DateTime, server_default=func.timezone("utc", func.now()))

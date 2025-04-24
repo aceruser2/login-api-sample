@@ -24,8 +24,7 @@ export const OrderManagement = () => {
           </Typography>
           <List>
             {/* 訂單列表 */}
-            <ListItem 
-              button 
+            <ListItemButton 
               selected={selectedOrder?.id === 1}
               onClick={() => setSelectedOrder({ id: 1 })}
             >
@@ -34,7 +33,7 @@ export const OrderManagement = () => {
                 secondary="桌號: A1 | 金額: $500"
               />
               <Chip label="製作中" color="primary" size="small" />
-            </ListItem>
+            </ListItemButton>
             <Divider />
           </List>
         </Paper>

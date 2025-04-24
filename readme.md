@@ -6,7 +6,7 @@
     alembic upgrade head && uvicorn server:app --host 0.0.0.0 --port 8000 --reload
      """ http://0.0.0.0:8000/docs
 
-
+ postgresql.JSONB(astext_type=sa.Text())
     jwt
     https://pyjwt.readthedocs.io/en/latest/algorithms.html
 

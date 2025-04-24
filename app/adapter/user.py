@@ -168,9 +168,9 @@ def get_user_all_role_and_permission_by_user_uuid(db: Session, user_uuid: str):
             .where(
                 User.uuid == user_uuid,
                 User.soft_delete == false(),
-                or_(RoleUser.soft_delete == false(), RoleUser.uuid == None),
+                or_(RoleUser.soft_delete == false(), RoleUser.id == None),
                 or_(Role.soft_delete == false(), Role.uuid == None),
-                or_(RolePermission.soft_delete == false(), RolePermission.uuid == None),
+                or_(RolePermission.soft_delete == false(), RolePermission.id == None),
                 or_(Permission.soft_delete == false(), Permission.uuid == None),
             )
         )

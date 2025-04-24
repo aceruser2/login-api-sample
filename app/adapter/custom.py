@@ -71,7 +71,7 @@ def create_desk_customer(db: Session, desk_uuid: str, customer_uuid: str):
     """內用登入，綁定桌子（1 小時有效）"""
     try:
         # 先確認此客戶有沒有活躍中的綁定（1 小時內）
-        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+        one_hour_ago = datetime.now(datetime.timezone.utc) - timedelta(hours=1)
         active_binding = db.execute(
             select(DeskCustomer).where(
                 DeskCustomer.customer_uuid == customer_uuid,
@@ -102,7 +102,7 @@ def get_active_desk_customer(db: Session, customer_phone: str):
     try:
         customer = get_customer_by_phone(db, customer_phone)
 
-        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+        one_hour_ago = datetime.now(datetime.timezone.utc) - timedelta(hours=1)
         desk_customer = db.execute(
             select(DeskCustomer).where(
                 DeskCustomer.customer_uuid == customer.uuid,

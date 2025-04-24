@@ -6,6 +6,7 @@ from datetime import datetime
 from app.adapter.model import Payment, Order, DeskCustomer
 from app.adapter.schema import PaymentCreate
 from app.adapter.custom import release_binding
+from app.extension.emun_setting import OrderStatusEnum
 
 
 def create_payment(db: Session, payment: PaymentCreate):
@@ -21,7 +22,7 @@ def create_payment(db: Session, payment: PaymentCreate):
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
 
-        if order.status == "completed":
+        if order.status == OrderStatusEnum.COMPLETED.value:
             raise HTTPException(status_code=400, detail="Order already completed")
 
         if payment.amount_paid < order.total_amount:
@@ -40,7 +41,7 @@ def create_payment(db: Session, payment: PaymentCreate):
         db.add(new_payment)
 
         # 更新訂單狀態
-        order.status = "completed"
+        order.status = OrderStatusEnum.COMPLETED.value
         order.update_dt = datetime.now()
 
         # 如果是內用訂單,解除桌位綁定

@@ -2,6 +2,7 @@ from typing import List, Optional, Union, Dict
 from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
+from app.extension.emun_setting import OrderStatusEnum
 
 
 class Token(BaseModel):
@@ -123,7 +124,7 @@ class OrderResponse(BaseModel):
     customer_uuid: str
     desk_uuid: Optional[str]
     total_amount: int
-    status: str
+    status: int  # 0: pending, 1: cooking, 2: completed, 3: cancelled
     order_type: str
     note: Optional[str]
     items: list[OrderItemResponse]

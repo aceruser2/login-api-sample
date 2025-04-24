@@ -1,0 +1,22 @@
+dbconn="postgresql+psycopg2://user:123456@localhost:7000/db"
+
+
+SECRET_KEY=norgjosrejgorejgojerogj
+ALGORITHM_LOGIN = "HS256"
+ALGORITHM_REFRESH =  "HS384"
+ACCESS_TOKEN_EXPIRE_MINUTES=999999
+REFRESH_TOKEN_EXPIRE_DAYS = 9999999
+    
+host =  "0.0.0.0"
+port =  8000
+pgp_pass =gdfgshshtfdjdhdjdgds
+USERNAME =admin
+PASSWORD =  "admin123"
+EMAIL =  "admin@example.com"
+ROLE_NAME =  "admin"
+ROLE_LEVEL =  "9"
+MAIL_USERNAME = 
+MAIL_PASSWORD =  
+MAIL_FROM = 
+MAIL_PORT = 587
+MAIL_SERVER =  "smtp.gmail.com"

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 from app.adapter.model import Order, OrderItem, MenuItem
 from app.adapter.schema import DailySalesReport, PopularItemReport
+from app.extension.emun_setting import OrderStatusEnum
 
 
 def get_daily_sales(db: Session, date: datetime):
@@ -20,7 +21,7 @@ def get_daily_sales(db: Session, date: datetime):
     ).where(
         Order.create_dt >= start_date,
         Order.create_dt < end_date,
-        Order.status == "completed",
+        Order.status == OrderStatusEnum.COMPLETED.value,
         Order.soft_delete == False,
     )
 
