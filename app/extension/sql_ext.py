@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, URL
 from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 
@@ -11,10 +11,17 @@ from app.config import sqlconn
 # db_engine = create_engine(
 #     sqlconn.dbconn, query_cache_size=1200, echo=False, poolclass=NullPool, future=True
 # )
-
+db_url = URL.create(
+    drivername=sqlconn.drivername,
+    username=sqlconn.username,
+    password=sqlconn.password,
+    host=sqlconn.host,
+    port=sqlconn.port,
+    database=sqlconn.database,
+)
 
 db_engine = create_engine(
-    sqlconn.dbconn,
+    url=db_url,
     pool_size=5,  # 連線池大小
     max_overflow=10,  # 超出連線池大小後可額外分配的連線數
     pool_timeout=30,  # 取得連線時的超時設定
@@ -22,14 +29,15 @@ db_engine = create_engine(
     pool_pre_ping=True,
     query_cache_size=1200,
     echo=False,
-    future=True
+    future=True,
 )
 # predict 150m/s wait test
 
 session_maker = sessionmaker(
-        autocommit=False, autoflush=False, bind=db_engine, future=True
-    )
+    autocommit=False, autoflush=False, bind=db_engine, future=True
+)
 scoped_session = ScopedSession(session_maker)
+
 
 def get_session() -> Iterator[Session]:
 
@@ -42,7 +50,6 @@ def get_session() -> Iterator[Session]:
     finally:
         session.close()
         db_engine.dispose()
-
 
 
 @contextmanager

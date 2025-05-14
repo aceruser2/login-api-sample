@@ -88,26 +88,15 @@ async def get_current_user(
         payload = jwt.decode(
             token, JwtEnv.SECRET_KEY, algorithms=[JwtEnv.ALGORITHM_LOGIN]
         )
-        user_or_desk: str = payload.get("sub")
-        user_status: str = payload.get("extra")
-        if user_or_desk is None or user_status is None:
+        user: str = payload.get("sub")
+        if user is None:
             raise credentials_exception
-        token_data = TokenData(user_or_desk=user_or_desk, extra=user_status)
+        return user
+
     except InvalidTokenError:
         raise credentials_exception
 
-    user = None
-    match token_data.extra:
-        case UserStatusEmun.STAFF.value:
-            user = get_user_by_username(db=db, user_name=token_data.user_or_desk)
-        case UserStatusEmun.DESK.value:
-            user = get_user_by_desk(db=db, desk_number=token_data.user_or_desk)
-        case _:
-            raise credentials_exception
-
-    if user is None:
-        raise credentials_exception
-    return user
+    
 
 
 async def refresh_get_current_user(
@@ -130,23 +119,13 @@ async def refresh_get_current_user(
             JwtEnv.SECRET_KEY,
             algorithms=[JwtEnv.ALGORITHM_REFRESH],
         )
-        user_or_desk: str = payload.get("sub")
-        user_status: str = payload.get("extra")
-        if user_or_desk is None or user_status is None:
+        user: str = payload.get("sub")
+        if user is None:
             raise credentials_exception
-        token_data = TokenData(user_or_desk=user_or_desk, extra=user_status)
+        return user
+
     except InvalidTokenError:
         raise credentials_exception
 
-    user = None
-    match token_data.extra:
-        case UserStatusEmun.STAFF.value:
-            user = get_user_by_username(db=db, user_name=token_data.user_or_desk)
-        case UserStatusEmun.DESK.value:
-            user = get_user_by_desk(db=db, desk_number=token_data.user_or_desk)
-        case _:
-            raise credentials_exception
-
-    if user is None:
-        raise credentials_exception
-    return user
+   
+    

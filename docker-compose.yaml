@@ -5,7 +5,7 @@ services:
     container_name: postgres-login
     build: ./postgres
     restart: unless-stopped
-    # image: postgresql-13:utf_8_01
+    # image: postgres:17
     # restart: always
     ports:
       - "7000:5432"
@@ -13,3 +13,12 @@ services:
       - p.env
     volumes:
       - ./pg-data:/var/lib/postgresql/data
+  
+  redis:
+    image: redis
+    container_name: redis_container
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis-data:/data
+    command: redis-server --appendonly yes

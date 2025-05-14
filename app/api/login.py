@@ -7,7 +7,7 @@ from app.adapter.user import (
     get_user_all_role_and_permission_by_user_uuid,
 )
 from app.adapter.custom import (
-    get_customer_by_phone,
+    get_customer_by_email,
     create_customer,
     create_desk_customer,
     bind_desk_to_customer,
@@ -28,7 +28,7 @@ from app.adapter.schema import (
     ReleaseBindingResponse,
 )
 from app.extension.jwt_config import create_access_token, create_refresh_token
-from app.adapter.model import User, RoleUser, RolePermission, Permission
+from app.adapter.model import User, Role, Permission
 from app.extension.jwt_config import refresh_get_current_user
 from typing import Union, Optional
 import logging
@@ -63,7 +63,12 @@ async def login_user(
     db: Session = Depends(get_session),
 ) -> LoginToken:
     """Standard user login
-
+    test ok
+    {
+        "access_token": "dfsd",
+        "refresh_token": "sdf",
+        "token_type": "bearer"
+    }
     Authenticates a user and returns access & refresh tokens with role/permission info
     """
     try:
@@ -91,32 +96,28 @@ async def login_user(
             )
 
         # Get user's roles and permissions
-        roles_permissions = get_user_all_role_and_permission_by_user_uuid(db, user.uuid)
-        if not roles_permissions:
+        all_user_role: list[tuple[User, Role, Permission]] = (
+            get_user_all_role_and_permission_by_user_uuid(db, user.uuid)
+        )
+        if not all_user_role:
             log.warning(f"User {user.username} has no roles/permissions assigned")
 
         # Extract role and permission data
-        extra_data = {"roles": [], "permissions": []}
-
-        if roles_permissions:
+        extra_data = {"roles": [], "roles_permissions": []}
+        log.info(all_user_role)
+        if all_user_role:
             # Assuming roles_permissions contains RoleUser objects with relationships
-            for role_user in roles_permissions.roles:
-                if role_user and role_user.role:
+            for user, role, permission in all_user_role:
+                if role and permission:
                     role_data = {
-                        "uuid": role_user.role.uuid,
-                        "name": role_user.role.role_name,
-                        "level": role_user.role.level,
-                    }
-                    extra_data["roles"].append(role_data)
-
-            for permission in roles_permissions.permissions:
-                if permission:
-                    perm_data = {
-                        "uuid": permission.uuid,
-                        "name": permission.permission_name,
+                        "role_uuid": role.uuid,
+                        "role_name": role.role_name,
+                        "level": role.level,
+                        "permission_uuid": permission.uuid,
+                        "permission_name": permission.permission_name,
                         "attributes": permission.permission_attributes,
                     }
-                    extra_data["permissions"].append(perm_data)
+                    extra_data["roles_permissions"].append(role_data)
 
         # Generate tokens
         access_token, refresh_token = generate_tokens(user.uuid, extra_data)
@@ -130,7 +131,9 @@ async def login_user(
     except HTTPException:
         raise
     except Exception as e:
-        log.error(f"Login failed for user {login_data.username}: {str(e)}")
+        log.error(
+            f"Login failed for user {login_data.username}: {e} {e.__traceback__.tb_lineno}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error occurred during login",
@@ -145,7 +148,7 @@ async def login_dine_in_customer(
     """Dine-in customer login first step - email verification"""
     try:
         # Check if user exists
-        user = get_customer_by_phone(db, login_data.phone)
+        user = get_customer_by_email(db, login_data.email)
 
         if not can_send_new_code(login_data.email):
             raise HTTPException(
@@ -290,7 +293,7 @@ def refresh(
     db: Session = Depends(get_session),
     refresh_get_current_user: User = Depends(refresh_get_current_user),
 ) -> Token:
-    access_token, _ = generate_tokens(refresh_get_current_user.uuid)
+    access_token, _ = generate_tokens(refresh_get_current_user)
     return Token(access_token=access_token, token_type="bearer")
 
 

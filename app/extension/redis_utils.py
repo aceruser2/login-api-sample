@@ -8,7 +8,7 @@ redis_client = redis.Redis(host="localhost", port=6379, db=0, decode_responses=T
 
 def generate_verification_code():
     """Generate 6 character verification code with mixed letters and numbers"""
-    chars = string.ascii_uppercase + string.digits
+    chars = string.printable + string.digits
     return "".join(random.choices(chars, k=6))
 
 

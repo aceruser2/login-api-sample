@@ -35,11 +35,11 @@ def create_customer(db: Session, customer_name: str, customer_phone: str):
         raise HTTPException(status_code=400, detail="create customer error")
 
 
-def get_customer_by_phone(db: Session, customer_phone: str):
+def get_customer_by_email(db: Session, email: str):
     try:
         customer = db.execute(
             select(Customer).where(
-                Customer.customer_phone == customer_phone, Customer.soft_delete == False
+                Customer.email == email, Customer.soft_delete == False
             )
         ).scalar()
         if not customer:

@@ -17,28 +17,28 @@ from fastapi.middleware.cors import CORSMiddleware
 
 def create_admin():
     with use_with_create_session() as db:
-        # Create admin role first
-        admin_role = create_role(
-            db=db, role_name=AdminConfig.ROLE_NAME, level=AdminConfig.ROLE_LEVEL
-        )
-
-        # Create admin permissions
-        permissions = []
-        for perm_name, perm_attrs in AdminConfig.PERMISSIONS.items():
-            perm = create_permission(
-                db=db, permission_name=perm_name, permission_attributes=perm_attrs
-            )
-            permissions.append(perm)
-
-            # Link permission to admin role
-            role_perm = RolePermission(
-                role_uuid=admin_role.uuid, permission_uuid=perm.uuid
-            )
-            db.add(role_perm)
 
         # Create admin user if not exists
         admin = get_user_by_username(db=db, username=AdminConfig.USERNAME)
         if not admin:
+            admin_role = create_role(
+                db=db, role_name=AdminConfig.ROLE_NAME, level=AdminConfig.ROLE_LEVEL
+            )
+
+            # Create admin permissions
+            permissions = []
+            for perm_name, perm_attrs in AdminConfig.PERMISSIONS.items():
+                perm = create_permission(
+                    db=db, permission_name=perm_name, permission_attributes=perm_attrs
+                )
+                permissions.append(perm)
+
+                # Link permission to admin role
+                role_perm = RolePermission(
+                    role_uuid=admin_role.uuid, permission_uuid=perm.uuid
+                )
+                db.add(role_perm)
+
             # 請確認 sqlconn.pgp_pass 與資料庫一致，否則加密/解密會失敗
             create_user(
                 db=db,
@@ -49,6 +49,8 @@ def create_admin():
                 true_name="Administrator",
                 role_uuid=admin_role.uuid,
             )
+            db.commit()
+
         # 若解密異常，請檢查：
         # 1. sqlconn.pgp_pass 是否與資料庫現有加密資料一致
         # 2. 若金鑰有變動，需清空資料表或重建資料庫

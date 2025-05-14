@@ -18,45 +18,33 @@ log = logging.getLogger(__name__)
 
 def create_role(db: Session, role_name: str, level: int):
     """建立角色"""
-    try:
-        create_role = Role(role_name=role_name, level=level)
-        db.add(create_role)
-        db.commit()
-        return create_role
-    except Exception as e:
-        db.rollback()
-        log.error(e)
-        raise HTTPException(status_code=400, detail="create role error")
+
+    new_role = Role(role_name=role_name, level=level)
+    db.add(new_role)
+    db.flush()
+    return new_role
 
 
 def create_permission(db: Session, permission_name: str, permission_attributes: dict):
     """建立權限"""
-    try:
-        create_permission = Permission(
-            permission_name=permission_name, permission_attributes=permission_attributes
-        )
-        db.add(create_permission)
-        db.commit()
-        return create_permission
-    except Exception as e:
-        db.rollback()
-        log.error(e)
-        raise HTTPException(status_code=400, detail="create permission error")
+
+    new_permission = Permission(
+        permission_name=permission_name, permission_attributes=permission_attributes
+    )
+    db.add(new_permission)
+    db.flush()
+    return new_permission
 
 
 def create_role_permission(db: Session, role_uuid: int, permission_uuid: int):
     """建立角色權限"""
-    try:
-        create_role_permission = RolePermission(
-            role_uuid=role_uuid, permission_uuid=permission_uuid
-        )
-        db.add(create_role_permission)
-        db.commit()
-        return create_role_permission
-    except Exception as e:
-        db.rollback()
-        log.error(e)
-        raise HTTPException(status_code=400, detail="create role permission error")
+
+    new_role_permission = RolePermission(
+        role_uuid=role_uuid, permission_uuid=permission_uuid
+    )
+    db.add(new_role_permission)
+    db.flush()
+    return new_role_permission
 
 
 def get_role_and_permission_by_role_uuid(db: Session, role_uuid: str):
@@ -76,9 +64,8 @@ def get_role_and_permission_by_role_uuid(db: Session, role_uuid: str):
         return db.execute(role).scalar()
 
     except Exception as e:
-        db.rollback()
-        log.error(e)
-        raise HTTPException(status_code=400, detail="get role and permission error")
+        log.error(e, exc_info=True)
+        raise e
 
 
 def get_user_all_role_and_permission(
@@ -86,7 +73,7 @@ def get_user_all_role_and_permission(
 ):
     """取得使用者所有角色權限list"""
     try:
-        
+
         user = (
             select(User)
             .join(
@@ -141,18 +128,15 @@ def get_user_all_role_and_permission(
             "users": db.execute(user).scalars().all(),
         }
     except Exception as e:
-        db.rollback()
-        log.error(e)
-        raise HTTPException(
-            status_code=400, detail="get user and role and permission error"
-        )
+        log.error(e, exc_info=True)
+        raise e
 
 
 def get_user_all_role_and_permission_by_user_uuid(db: Session, user_uuid: str):
     """取得使用者所有角色權限"""
     try:
         user = (
-            select(User)
+            select(User, Role, Permission)
             .join(
                 RoleUser,
                 User.uuid == RoleUser.user_uuid,
@@ -175,16 +159,11 @@ def get_user_all_role_and_permission_by_user_uuid(db: Session, user_uuid: str):
             )
         )
 
-        return db.execute(user).scalar()
+        return db.execute(user).all()  # 回傳所有權限
 
-    except HTTPException:
-        raise
     except Exception as e:
-        db.rollback()
-        log.error(f"Error getting user roles and permissions: {str(e)}")
-        raise HTTPException(
-            status_code=400, detail="Error getting user roles and permissions"
-        )
+        log.error(e, exc_info=True)
+        raise e
 
 
 def get_user_by_username(db: Session, username: str):
@@ -195,9 +174,8 @@ def get_user_by_username(db: Session, username: str):
         )
         return db.execute(user).scalar()
     except Exception as e:
-        db.rollback()
-        log.error(e)
-        raise HTTPException(status_code=400, detail="get user error")
+        log.error(e, exc_info=True)
+        raise e
 
 
 def create_user(
@@ -213,6 +191,7 @@ def create_user(
     員工用
     """
     try:
+        role = None
         if role_uuid:
             role = get_role_and_permission_by_role_uuid(db, role_uuid)
             if role is None:
@@ -222,22 +201,18 @@ def create_user(
         if get_user_by_username(db, username) is not None:
             raise HTTPException(status_code=400, detail="username already exist")
         info_data = {"gender": gender, "true_name": true_name}
-        create_user = User(username=username, email=email, info=info_data)
-        create_user.password = password
-        db.add(create_user)
+        new_user = User(username=username, email=email, info=info_data)
+        new_user.password = password
+        db.add(new_user)
+        db.flush()  # 先 flush 讓 create_user.uuid 產生
         if role_uuid:
-            role_user = RoleUser(user_uuid=create_user.uuid, role_uuid=role_uuid)
+            role_user = RoleUser(user_uuid=new_user.uuid, role_uuid=role_uuid)
             db.add(role_user)
-        db.commit()
-        db.flush()
-        return_user = get_user_all_role_and_permission_by_user_uuid(
-            db, create_user.uuid
-        )
-        return return_user
+            db.flush()
+        return new_user
     except Exception as e:
-        db.rollback()
-        log.error(e)
-        raise HTTPException(status_code=400, detail="create user error")
+        log.error(e, exc_info=True)
+        raise e
 
 
 def get_user_by_uuid(db: Session, user_uuid: str):

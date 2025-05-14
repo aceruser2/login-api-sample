@@ -69,14 +69,11 @@ def create_user(
 
     try:
         user = user.create_user(
-            user_status=user_status,
             username=username,
-            desk_number=desk_number,
             password=password,
             email=email,
             gender=gender,
             true_name=true_name,
-            info=info,
             db=db,
         )
         return user

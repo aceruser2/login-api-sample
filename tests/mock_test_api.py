@@ -7,6 +7,7 @@ from app.adapter.model import Base
 from app.extension.sql_ext import session_maker
 from app.extension.loadenv import load
 from app.config import sqlconn
+from app.adapter.user import get_user_by_username
 
 load()
 db_url = URL.create(
@@ -24,7 +25,6 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_database():
-    # Drop all tables first to ensure a clean state
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
@@ -52,38 +52,48 @@ def admin_token(db_session):
         create_permission,
         create_role_permission,
     )
+    admin = get_user_by_username(db=db_session, username="admin")
+    if not admin:
+        default_role = create_role(db=db_session, role_name="Admin", level=1)
 
-    default_role = create_role(db=db_session, role_name="Admin", level=1)
+        mock_permission = create_permission(
+            db=db_session,
+            permission_name="all_access",
+            permission_attributes={
+                "can_create": True,
+                "can_read": True,
+                "can_update": True,
+                "can_delete": True,
+            },
+        )
+        create_role_permission(
+            db=db_session,
+            role_uuid=default_role.uuid,
+            permission_uuid=mock_permission.uuid,
+        )
 
-    mock_permission = create_permission(
-        db=db_session,
-        permission_name="all_access",
-        permission_attributes={
-            "can_create": True,
-            "can_read": True,
-            "can_update": True,
-            "can_delete": True,
-        },
-    )
-    create_role_permission(
-        db=db_session,
-        role_uuid=default_role.uuid,
-        permission_uuid=mock_permission.uuid,
-    )
-
-    create_user(
-        db=db_session,
-        username="admin",
-        password="123456",
-        email="admin@example.com",
-        gender="male",
-        true_name="Admin User",
-        role_uuid=default_role.uuid,
-    )
-    login_data = {"username": "admin", "password": "123456", "userstatus": 0}
+        create_user(
+            db=db_session,
+            username="admin",
+            password="123456",
+            email="admin@example.com",
+            gender="male",
+            true_name="Admin User",
+            role_uuid=default_role.uuid,
+        )
+        db_session.commit()
+    login_data = {"username": "admin", "password": "123456"}
     response = client.post("/token/user", json=login_data)
     assert response.status_code == 200
-    return response.json()["access_token"]
+    return response.json()
+
+
+@pytest.fixture
+def mock_admin_pass():
+    return {
+        "username": "admin",
+        "password": "123456",
+    }
 
 
 @pytest.fixture
