@@ -11,7 +11,7 @@ def test_refresh_token(setup_database, admin_token, db_session):
 
     # Try refreshing token
     headers = {"Authorization": f"bearer {refresh_token}"}
-    response = client.post("/refresh", headers=headers)
+    response = client.post("/refresh/staff", headers=headers)
     assert response.status_code == 200
     assert "access_token" in response.json()
 
@@ -19,5 +19,5 @@ def test_refresh_token(setup_database, admin_token, db_session):
 def test_refresh_token_invalid():
     """Test refresh with invalid token"""
     headers = {"Authorization": "Bearer invalid-token"}
-    response = client.post("/refresh", headers=headers)
+    response = client.post("/refresh/staff", headers=headers)
     assert response.status_code == 401

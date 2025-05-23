@@ -32,9 +32,6 @@ from app.adapter.model import User, Role, Permission
 from app.extension.jwt_config import refresh_get_current_user
 from typing import Union, Optional
 import logging
-
-log = logging.getLogger(__name__)
-
 from app.extension.redis_utils import (
     generate_verification_code,
     store_verification_code,
@@ -43,8 +40,10 @@ from app.extension.redis_utils import (
 )
 from app.services.email_service import send_verification_email
 
+log = logging.getLogger(__name__)
 
-def generate_tokens(user_uuid: str, extra_data: dict = None):
+
+def generate_staff_tokens(user_uuid: str, extra_data: dict = None):
     access_token_expires = timedelta(minutes=JwtEnv.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user_uuid, **(extra_data or {})},
@@ -57,8 +56,8 @@ def generate_tokens(user_uuid: str, extra_data: dict = None):
     return access_token, refresh_token
 
 
-@app.post("/token/user")
-async def login_user(
+@app.post("/token/staff")
+async def login_staff(
     login_data: LoginData,
     db: Session = Depends(get_session),
 ) -> LoginToken:
@@ -120,7 +119,7 @@ async def login_user(
                     extra_data["roles_permissions"].append(role_data)
 
         # Generate tokens
-        access_token, refresh_token = generate_tokens(user.uuid, extra_data)
+        access_token, refresh_token = generate_staff_tokens(user.uuid, extra_data)
 
         log.info(f"User {user.username} logged in successfully")
 
@@ -128,16 +127,24 @@ async def login_user(
             access_token=access_token, refresh_token=refresh_token, token_type="bearer"
         )
 
-    except HTTPException:
-        raise
     except Exception as e:
         log.error(
             f"Login failed for user {login_data.username}: {e} {e.__traceback__.tb_lineno}"
         )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error occurred during login",
-        )
+        raise e
+
+
+@app.post("/refresh/staff")
+def refresh_staff(
+    db: Session = Depends(get_session),
+    refresh_get_current_user: User = Depends(refresh_get_current_user),
+) -> Token:
+    try:
+        access_token, _ = generate_staff_tokens(refresh_get_current_user)
+        return Token(access_token=access_token, token_type="bearer")
+    except Exception as e:
+        log.error(f"Token refresh failed: {str(e)}", exc_info=True)
+        raise e
 
 
 @app.post("/token/dine-in")
@@ -149,6 +156,19 @@ async def login_dine_in_customer(
     try:
         # Check if user exists
         user = get_customer_by_email(db, login_data.email)
+        if user and user.customer_phone != login_data.phone:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Phone number does not match the existing account",
+            )
+        else:
+            user = create_customer(
+                db=db,
+                customer_name=login_data.custom_name,
+                customer_phone=login_data.phone,
+                email=login_data.email,
+                is_verified=False,
+            )
 
         if not can_send_new_code(login_data.email):
             raise HTTPException(
@@ -162,7 +182,7 @@ async def login_dine_in_customer(
 
         # Send verification email
         await send_verification_email(login_data.email, code)
-
+        db.commit()
         return {
             "message": "Verification code sent",
             "require_verification": True,
@@ -191,15 +211,15 @@ async def verify_dine_in(
         )
 
     # Create or get user
-    user = get_customer_by_phone(db, login_data.phone)
+    user = get_customer_by_email(db, login_data.phone)
     if not user:
-        user = create_customer(
-            db=db,
-            customer_name=login_data.custom_name,
-            customer_phone=login_data.phone,
-            email=login_data.email,
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
-
+    if user and user.is_verified == False:
+        user.is_verified = True
+        db.commit()
+    # TODO: 待修
     # Verify and bind desk
     desk = get_desk_by_uuid(db, login_data.desk_uuid)
     if not desk:
@@ -286,15 +306,6 @@ async def verify_takeout(
     return LoginToken(
         access_token=access_token, refresh_token=refresh_token, token_type="bearer"
     )
-
-
-@app.post("/refresh")
-def refresh(
-    db: Session = Depends(get_session),
-    refresh_get_current_user: User = Depends(refresh_get_current_user),
-) -> Token:
-    access_token, _ = generate_tokens(refresh_get_current_user)
-    return Token(access_token=access_token, token_type="bearer")
 
 
 @app.post("/desk-customer/", response_model=DeskBindingResponse)

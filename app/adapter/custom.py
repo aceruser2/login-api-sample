@@ -10,24 +10,45 @@ from app.adapter.model import Customer, Desk, DeskCustomer
 log = logging.getLogger(__name__)
 
 
-def create_customer(db: Session, customer_name: str, customer_phone: str):
+def create_customer(
+    db: Session, customer_name: str, customer_phone: str, email: str, is_verified: bool
+):
     """Create a new customer if not exists"""
     try:
         existing_customer = db.execute(
             select(Customer).where(
-                Customer.customer_phone == customer_phone, Customer.soft_delete == False
+                Customer.email == email,
+                Customer.soft_delete == False,
             )
         ).scalar()
 
         if existing_customer:
+            # 若手機號不同，視為換號，建議提示或軟刪原資料,但手機還是得認證尚未實作
+            if existing_customer.customer_phone != customer_phone:
+                raise HTTPException(
+                    status_code=400,
+                    detail="此信箱已綁定其他手機號，請聯絡客服或用原手機號登入",
+                )
             return existing_customer
 
+        # 檢查手機號是否已被其他帳號使用
+        phone_customer = db.execute(
+            select(Customer).where(
+                Customer.customer_phone == customer_phone,
+                Customer.soft_delete == False,
+            )
+        ).scalar()
+        if phone_customer:
+            raise HTTPException(status_code=400, detail="此手機號已被其他帳號使用")
+
         new_customer = Customer(
-            customer_name=customer_name, customer_phone=customer_phone
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            email=email,
+            is_verified=is_verified,
         )
         db.add(new_customer)
-        db.commit()
-        db.refresh(new_customer)
+        db.flush()
         return new_customer
     except Exception as e:
         db.rollback()

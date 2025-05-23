@@ -83,7 +83,7 @@ def admin_token(db_session):
         )
         db_session.commit()
     login_data = {"username": "admin", "password": "123456"}
-    response = client.post("/token/user", json=login_data)
+    response = client.post("/token/staff", json=login_data)
     assert response.status_code == 200
     return response.json()
 
@@ -97,7 +97,7 @@ def mock_admin_pass():
 
 
 @pytest.fixture
-def mock_user_data():
+def mock_staff_data():
     return {
         "username": "testuser",
         "password": "Test@1234",
