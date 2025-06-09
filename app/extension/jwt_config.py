@@ -7,8 +7,8 @@ from jwt.exceptions import InvalidTokenError
 from pydantic import BaseModel
 import bcrypt
 from app.config import JwtEnv
-from app.adapter.schema import TokenData
-from app.adapter.user import  get_user_by_username
+from app.schema import TokenData
+from app.services.user_service import get_user_by_username
 from sqlalchemy.orm import Session
 from app.extension.sql_ext import get_session
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -96,8 +96,6 @@ async def get_current_user(
     except InvalidTokenError:
         raise credentials_exception
 
-    
-
 
 async def refresh_get_current_user(
     bearer: HTTPAuthorizationCredentials = Depends(auth_scheme),
@@ -126,6 +124,3 @@ async def refresh_get_current_user(
 
     except InvalidTokenError:
         raise credentials_exception
-
-   
-    

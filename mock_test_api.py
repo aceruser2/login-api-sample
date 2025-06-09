@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, URL
 from sqlalchemy.orm import sessionmaker
 from app import app
-from app.adapter.model import Base
+from app.model import Base
 from app.extension.sql_ext import session_maker
 from app.extension.loadenv import load
 from app.config import sqlconn
@@ -46,7 +46,7 @@ client = TestClient(app)
 # Fixtures for test data
 @pytest.fixture
 def admin_token(db_session):
-    from app.adapter.user import (
+    from app.services.user_service import (
         create_role,
         create_user,
         create_permission,

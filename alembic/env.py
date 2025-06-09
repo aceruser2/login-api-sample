@@ -2,7 +2,6 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool, URL
-from app.config import sqlconn
 from alembic import context
 
 # add1
@@ -19,6 +18,7 @@ sys.path.append(BASE_DIR)
 # access to the values within the .ini file in use.
 config = context.config
 
+from app.config import sqlconn
 db_url = URL.create(
     drivername=sqlconn.drivername,
     username=sqlconn.username,
@@ -27,12 +27,10 @@ db_url = URL.create(
     port=sqlconn.port,
     database=sqlconn.database,
 )
-
-
 # add2
 # this will overwrite the ini-file sqlalchemy.url path
 # with the path given in the config of the main code
-config.set_main_option("sqlalchemy.url", db_url)
+config.set_main_option("sqlalchemy.url", db_url.render_as_string(hide_password=False))
 
 
 # Interpret the config file for Python logging.

@@ -1,12 +1,12 @@
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from fastapi import Depends, HTTPException, status, APIRouter
 from app import app
 from app.config import JwtEnv
-from app.adapter.user import (
+from app.services.user_service import (
     get_user_by_username,
     get_user_all_role_and_permission_by_user_uuid,
 )
-from app.adapter.custom import (
+from app.services.custom_service import (
     get_customer_by_email,
     create_customer,
     create_desk_customer,
@@ -14,9 +14,9 @@ from app.adapter.custom import (
     get_active_binding,
     release_binding,
 )
-from app.adapter.desk import get_desk_by_uuid
+from app.services.desk_service import get_desk_by_uuid
 from app.extension.sql_ext import get_session, Session
-from app.adapter.schema import (
+from app.schema import (
     Token,
     LoginToken,
     LoginData,
@@ -28,7 +28,7 @@ from app.adapter.schema import (
     ReleaseBindingResponse,
 )
 from app.extension.jwt_config import create_access_token, create_refresh_token
-from app.adapter.model import User, Role, Permission
+from app.model import User, Role, Permission
 from app.extension.jwt_config import refresh_get_current_user
 from typing import Union, Optional
 import logging
@@ -56,6 +56,19 @@ def generate_staff_tokens(user_uuid: str, extra_data: dict = None):
     return access_token, refresh_token
 
 
+def generate_custom_tokens(custom_uuid: str, extra_data: dict = None):
+    access_token_expires = timedelta(minutes=JwtEnv.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": custom_uuid, **(extra_data or {})},
+        expires_delta=access_token_expires,
+    )
+    refresh_token = create_refresh_token(
+        data={"sub": custom_uuid},
+        expires_delta=access_token_expires,
+    )
+    return access_token, refresh_token
+
+
 @app.post("/token/staff")
 async def login_staff(
     login_data: LoginData,
@@ -73,7 +86,7 @@ async def login_staff(
     try:
         # Validate input
         if not login_data.username or not login_data.password:
-            raise HTTPException(
+            return HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username and password are required",
             )
@@ -81,14 +94,14 @@ async def login_staff(
         # Get and verify user
         user = get_user_by_username(db, login_data.username)
         if not user:
-            raise HTTPException(
+            return HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
         if not user.check_password(login_data.password):
-            raise HTTPException(
+            return HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect password",
                 headers={"WWW-Authenticate": "Bearer"},
@@ -128,8 +141,9 @@ async def login_staff(
         )
 
     except Exception as e:
-        log.error(
-            f"Login failed for user {login_data.username}: {e} {e.__traceback__.tb_lineno}"
+        log.critical(
+            f"Login failed for user {login_data.username}: {e} {e.__traceback__.tb_lineno}",
+            exc_info=True,
         )
         raise e
 
@@ -143,7 +157,7 @@ def refresh_staff(
         access_token, _ = generate_staff_tokens(refresh_get_current_user)
         return Token(access_token=access_token, token_type="bearer")
     except Exception as e:
-        log.error(f"Token refresh failed: {str(e)}", exc_info=True)
+        log.critical(f"Token refresh failed: {str(e)}", exc_info=True)
         raise e
 
 
@@ -157,7 +171,7 @@ async def login_dine_in_customer(
         # Check if user exists
         user = get_customer_by_email(db, login_data.email)
         if user and user.customer_phone != login_data.phone:
-            raise HTTPException(
+            return HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Phone number does not match the existing account",
             )
@@ -171,7 +185,7 @@ async def login_dine_in_customer(
             )
 
         if not can_send_new_code(login_data.email):
-            raise HTTPException(
+            return HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Please wait 5 minutes before requesting a new code",
             )
@@ -190,11 +204,11 @@ async def login_dine_in_customer(
         }
 
     except Exception as e:
-        log.error(f"Email verification failed: {str(e)}")
+        log.critical(f"Email verification failed: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send verification code",
-        )
+        ) from e
 
 
 @app.post("/verify/dine-in")
@@ -203,48 +217,53 @@ async def verify_dine_in(
     verification_code: str,
     db: Session = Depends(get_session),
 ) -> LoginToken:
-    """Complete dine-in login after verification"""
-    if not verify_code(login_data.email, verification_code):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired verification code",
-        )
+    try:
+        """Complete dine-in login after verification"""
+        if not verify_code(login_data.email, verification_code):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired verification code",
+            )
 
-    # Create or get user
-    user = get_customer_by_email(db, login_data.phone)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-    if user and user.is_verified == False:
-        user.is_verified = True
+        # Create or get user
+        user = get_customer_by_email(db, login_data.phone)
+        if not user:
+            return HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+            )
+        if user and user.is_verified == False:
+            user.is_verified = True
+            db.commit()
+        # Verify and bind desk
+        desk = get_desk_by_uuid(db, login_data.desk_uuid)
+        if not desk:
+            return HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Desk not found"
+            )
+
+        # Check active binding
+        active_binding = get_active_binding(db, login_data.email)
+        if active_binding and active_binding.create_dt + timedelta(
+            hours=1
+        ) > datetime.now(datetime.timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Customer already has an active desk binding",
+            )
+
+        # Bind desk and generate tokens
+        bind_desk_to_customer(db, login_data.email, login_data.desk_uuid)
         db.commit()
-    # TODO: 待修
-    # Verify and bind desk
-    desk = get_desk_by_uuid(db, login_data.desk_uuid)
-    if not desk:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Desk not found"
+
+        access_token, refresh_token = generate_custom_tokens(user.uuid)
+
+        return LoginToken(
+            access_token=access_token, refresh_token=refresh_token, token_type="bearer"
         )
-
-    # Check active binding
-    active_binding = get_active_binding(db, login_data.phone)
-    if (
-        active_binding
-        and active_binding.create_dt + timedelta(hours=1) > datetime.utcnow()
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Customer already has an active desk binding",
-        )
-
-    # Bind desk and generate tokens
-    bind_desk_to_customer(db, login_data.phone, login_data.desk_uuid)
-    access_token, refresh_token = generate_tokens(user.uuid)
-
-    return LoginToken(
-        access_token=access_token, refresh_token=refresh_token, token_type="bearer"
-    )
+    except Exception as e:
+        db.rollback()
+        log.critical(e, exc_info=True)
+        raise e
 
 
 @app.post("/token/takeout")
@@ -254,8 +273,21 @@ async def login_takeout_customer(
 ) -> dict:
     """Takeout customer login first step - email verification"""
     try:
-        user = get_customer_by_phone(db, login_data.phone)
+        user = get_customer_by_email(db, login_data.phone)
 
+        if user and user.customer_phone != login_data.phone:
+            return HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Phone number does not match the existing account",
+            )
+        else:
+            user = create_customer(
+                db=db,
+                customer_name=login_data.custom_name,
+                customer_phone=login_data.phone,
+                email=login_data.email,
+                is_verified=False,
+            )
         if not can_send_new_code(login_data.email):
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -265,7 +297,7 @@ async def login_takeout_customer(
         code = generate_verification_code()
         store_verification_code(login_data.email, code)
         await send_verification_email(login_data.email, code)
-
+        db.commit()
         return {
             "message": "Verification code sent",
             "require_verification": True,
@@ -273,11 +305,11 @@ async def login_takeout_customer(
         }
 
     except Exception as e:
-        log.error(f"Email verification failed: {str(e)}")
+        log.critical(f"Email verification failed: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send verification code",
-        )
+        ) from e
 
 
 @app.post("/verify/takeout")
@@ -287,34 +319,36 @@ async def verify_takeout(
     db: Session = Depends(get_session),
 ) -> LoginToken:
     """Complete takeout login after verification"""
-    if not verify_code(login_data.email, verification_code):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired verification code",
+    try:
+        if not verify_code(login_data.email, verification_code):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired verification code",
+            )
+        user = get_customer_by_email(db, login_data.phone)
+        if not user:
+            return HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+            )
+        if user and user.is_verified == False:
+            user.is_verified = True
+            db.commit()
+        access_token, refresh_token = generate_custom_tokens(user.uuid)
+        return LoginToken(
+            access_token=access_token, refresh_token=refresh_token, token_type="bearer"
         )
-
-    user = get_customer_by_phone(db, login_data.phone)
-    if not user:
-        user = create_customer(
-            db=db,
-            customer_name=login_data.custom_name,
-            customer_phone=login_data.phone,
-            email=login_data.email,
-        )
-
-    access_token, refresh_token = generate_tokens(user.uuid)
-    return LoginToken(
-        access_token=access_token, refresh_token=refresh_token, token_type="bearer"
-    )
+    except Exception as e:
+        db.rollback()
+        log.critical(e, exc_info=True)
+        raise e
 
 
 @app.post("/desk-customer/", response_model=DeskBindingResponse)
 def bind_desk(request: DeskBindingRequest, db: Session = Depends(get_session)):
     """Bind a desk to a customer"""
-    active_binding = get_active_binding(db, request.customer_phone)
-    if (
-        active_binding
-        and active_binding.create_dt + timedelta(hours=1) > datetime.utcnow()
+    active_binding = get_active_binding(db, request.customer_email)
+    if active_binding and active_binding.create_dt + timedelta(hours=1) > datetime.now(
+        timezone.utc
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -329,10 +363,12 @@ def bind_desk(request: DeskBindingRequest, db: Session = Depends(get_session)):
 
 
 @app.get("/desk-customer/active", response_model=DeskBindingResponse)
-def get_active_desk_binding(customer_phone: str, db: Session = Depends(get_session)):
+def get_active_desk_binding(customer_email: str, db: Session = Depends(get_session)):
     """Retrieve active desk binding for a customer"""
-    binding = get_active_binding(db, customer_phone)
-    if not binding or binding.create_dt + timedelta(hours=1) <= datetime.utcnow():
+    binding = get_active_binding(db, customer_email)
+    if not binding or binding.create_dt + timedelta(hours=1) <= datetime.now(
+        timezone.utc
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No active desk binding found",
@@ -347,13 +383,15 @@ def get_active_desk_binding(customer_phone: str, db: Session = Depends(get_sessi
 @app.post("/desk-customer/release", response_model=ReleaseBindingResponse)
 def release_desk(request: ReleaseBindingRequest, db: Session = Depends(get_session)):
     """Release desk binding for a customer"""
-    binding = get_active_binding(db, request.customer_phone)
-    if not binding or binding.create_dt + timedelta(hours=1) <= datetime.utcnow():
+    binding = get_active_binding(db, request.customer_email)
+    if not binding or binding.create_dt + timedelta(hours=1) <= datetime.now(
+        timezone.utc
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No active desk binding to release",
         )
-    release_result = release_binding(db, request.customer_phone)
+    release_result = release_binding(db, request.customer_email)
     return ReleaseBindingResponse(message=release_result["message"])
 
 
@@ -373,6 +411,7 @@ def update_customer(
             customer_phone=customer_phone,
         )
     except Exception as e:
+        log.critical(e, exc_info=True)
         raise HTTPException(status_code=400, detail="update customer error")
 
 
@@ -382,4 +421,5 @@ def delete_customer(customer_uuid: str, db: Session = Depends(get_session)):
     try:
         return delete_customer(db=db, customer_uuid=customer_uuid)
     except Exception as e:
+        log.critical(e, exc_info=True)
         raise HTTPException(status_code=400, detail="delete customer error")

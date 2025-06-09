@@ -2,8 +2,8 @@ import os
 import uvicorn
 import logging.config
 from app import logging_config
-from app.adapter.model import User, Role, Permission, RoleUser, RolePermission
-from app.adapter.user import (
+from app.model import User, Role, Permission, RoleUser, RolePermission
+from app.services.user_service import (
     get_user_by_username,
     create_role,
     create_permission,

@@ -1,20 +1,13 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from app.adapter.model import MenuItem
-from app.adapter.schema import MenuItemCreate, MenuItemUpdate
-from fastapi import HTTPException
+from app.model import MenuItem
+from app.schema import MenuItemCreate, MenuItemUpdate
 
 
 def create_menu_item(db: Session, item: MenuItemCreate):
     db_item = MenuItem(**item.model_dump())
-    try:
-        db.add(db_item)
-        db.commit()
-        db.refresh(db_item)
-        return db_item
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+    db.add(db_item)
+    return db_item
 
 
 def get_menu_items(db: Session, skip: int = 0, limit: int = 20, category: str = None):
@@ -32,10 +25,9 @@ def update_menu_item(db: Session, item_uuid: str, item: MenuItemUpdate):
     ).scalar_one_or_none()
 
     if not db_item:
-        raise HTTPException(status_code=404, detail="Menu item not found")
+        raise ValueError("Menu item not found")
 
     for field, value in item.model_dump(exclude_unset=True).items():
         setattr(db_item, field, value)
 
-    db.commit()
     return db_item

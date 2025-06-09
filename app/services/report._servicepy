@@ -2,8 +2,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 from datetime import datetime, timedelta
 
-from app.adapter.model import Order, OrderItem, MenuItem
-from app.adapter.schema import DailySalesReport, PopularItemReport
+from app.model import Order, OrderItem, MenuItem
+from app.schema import DailySalesReport, PopularItemReport
 from app.extension.emun_setting import OrderStatusEnum
 
 

@@ -3,12 +3,12 @@ import random
 import string
 from datetime import timedelta
 
-redis_client = redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
+redis_client = redis.Redis(host="0.0.0.0", port=6379, db=0, decode_responses=True)
 
 
 def generate_verification_code():
     """Generate 6 character verification code with mixed letters and numbers"""
-    chars = string.printable + string.digits
+    chars = string.ascii_letters + string.digits
     return "".join(random.choices(chars, k=6))
 
 

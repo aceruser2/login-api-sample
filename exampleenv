@@ -1,7 +1,7 @@
 drivername=postgresql+psycopg2
 db_user=user
 db_pass=123456
-db_host=localhost
+db_host=0.0.0.0
 db_port=7000
 dbname=db
 
