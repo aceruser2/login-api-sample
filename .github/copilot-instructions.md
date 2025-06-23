@@ -127,6 +127,32 @@ Service 不含 FastAPI 特有語法
 例外只在 API 層轉為 HTTP 回應
 
 # 注意
+偏好語法提示詞（用於 AI 生成程式碼）
+markdown
+複製
+編輯
+請一律使用 SQLAlchemy 2.0 的新式查詢語法（也稱為 2.0 style），不要使用舊有的 ORM 查詢方式（如 `db.query(...).filter(...)`）。  
+我偏好使用 `select(...)` + `where(...)` + `session.execute(stmt)` 結合 `.scalar_one_or_none()` 或 `.scalars().first()` 來撈資料。
+
+例如撈一個使用者的資料，請這樣寫：
+```python
+stmt = select(User).where(User.id == user_id)
+result = db.execute(stmt).scalar_one_or_none()
+不要這樣寫（這是舊語法）：
+
+python
+複製
+編輯
+db.query(User).filter(User.id == user_id).first()
+如需多筆查詢，請使用：
+
+python
+複製
+編輯
+stmt = select(User).where(User.is_active == True)
+results = db.execute(stmt).scalars().all()
+並使用 from sqlalchemy import select 開頭引入必要語法。
+
 `scalar()` 適用於只查詢單一欄位或單一模型（例如 select(User)），且你只需要第一筆資料的第一個欄位（column）的值。常見場景如下：
 
 1. **查詢單一模型的單一物件**  

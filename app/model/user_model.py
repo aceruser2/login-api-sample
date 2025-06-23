@@ -1,4 +1,5 @@
-from sqlalchemy import Column, String, Boolean, Integer, DateTime, text, JSONB
+from sqlalchemy import Column, String, Boolean, Integer, DateTime, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from app.model.base import Base, PGPEncryptString, encrypted_jsonb_type
 import bcrypt

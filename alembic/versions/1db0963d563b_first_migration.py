@@ -1,8 +1,8 @@
 """first migration
 
-Revision ID: e0c307806a0a
+Revision ID: 1db0963d563b
 Revises: 
-Create Date: 2025-04-24 17:56:04.802926
+Create Date: 2025-06-23 11:04:15.568663
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = 'e0c307806a0a'
+revision = '1db0963d563b'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -24,6 +24,7 @@ def upgrade():
     sa.Column('customer_name', sa.String(), nullable=True),
     sa.Column('customer_phone', sa.String(), nullable=True),
     sa.Column('email', sa.String(), nullable=True),
+    sa.Column('is_verified', sa.Boolean(), nullable=True),
     sa.Column('soft_delete', sa.Boolean(), nullable=True),
     sa.Column('create_dt', sa.DateTime(), server_default=sa.text("timezone('utc', now())"), nullable=True),
     sa.Column('update_dt', sa.DateTime(), server_default=sa.text("timezone('utc', now())"), nullable=True),
@@ -191,9 +192,9 @@ def upgrade():
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('uuid', sa.String(), server_default=sa.text('uuid_generate_v4()'), nullable=True),
     sa.Column('username', sa.String(), nullable=True),
-    sa.Column('_password', postgresql.BYTEA(), nullable=True),
+    sa.Column('_password', sa.String(), nullable=True),
     sa.Column('email', sa.String(), nullable=False),
-    sa.Column('info',  postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('info', postgresql.JSONB(), nullable=True),
     sa.Column('soft_delete', sa.Boolean(), nullable=True),
     sa.Column('create_dt', sa.DateTime(), server_default=sa.text("timezone('utc', now())"), nullable=True),
     sa.Column('update_dt', sa.DateTime(), server_default=sa.text("timezone('utc', now())"), nullable=True),

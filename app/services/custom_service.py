@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 def create_customer(
     db: Session, customer_name: str, customer_phone: str, email: str, is_verified: bool
 ):
-    """Create a new customer if not exists"""
+    """Create a new customer if not exists (以 email 為唯一識別)"""
     existing_customer = db.execute(
         select(Customer).where(
             Customer.email == email,
@@ -21,12 +21,13 @@ def create_customer(
     ).scalar()
 
     if existing_customer:
-        # 若手機號不同，視為換號，建議提示或軟刪原資料,但手機還是得認證尚未實作
+        # 若電話不同，視為換號，建議提示或軟刪原資料,但電話還是得認證尚未實作
         if existing_customer.customer_phone != customer_phone:
             raise ValueError("此信箱已綁定其他手機號，請聯絡客服或用原手機號登入")
         return existing_customer
 
-    # 檢查手機號是否已被其他帳號使用
+    # 檢查 email 是否已被其他帳號使用（已於上方判斷）
+    # 檢查手機號是否已被其他帳號使用（可選，視需求保留）
     phone_customer = db.execute(
         select(Customer).where(
             Customer.customer_phone == customer_phone,
@@ -34,7 +35,9 @@ def create_customer(
         )
     ).scalar()
     if phone_customer:
-        raise ValueError("此手機號已被其他帳號使用")
+        # 若同手機但不同 email，仍可提示
+        if phone_customer.email != email:
+            raise ValueError("此手機號已被其他帳號使用")
 
     new_customer = Customer(
         customer_name=customer_name,
@@ -48,6 +51,7 @@ def create_customer(
 
 
 def get_customer_by_email(db: Session, email: str):
+    """以 email 查詢顧客"""
     customer = db.execute(
         select(Customer).where(Customer.email == email, Customer.soft_delete == False)
     ).scalar()

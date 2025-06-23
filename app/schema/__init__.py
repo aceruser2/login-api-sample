@@ -1,4 +1,12 @@
-from .auth_schema import Token, LoginToken, TokenData, LoginData, CustomLoginData
+from .auth_schema import (
+    Token,
+    LoginToken,
+    TokenData,
+    LoginData,
+    CustomLoginData,
+    CustomDineVerify,
+    CustomTakeOutVerify
+)
 from .desk_schema import (
     DeskBindingRequest,
     DeskBindingResponse,

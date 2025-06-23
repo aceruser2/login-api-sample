@@ -27,5 +27,18 @@ class CustomLoginData(BaseModel):
     custom_name: str
     phone: str
     email: str
+
+
+class CustomDineVerify(BaseModel):
+    custom_name: str
+    phone: str
+    email: str
+    verify_code: str
     desk_uuid: str
-    use_in_restaurants: bool
+
+
+class CustomTakeOutVerify(BaseModel):
+    custom_name: str
+    phone: str
+    email: str
+    verify_code: str

@@ -1,3 +1,4 @@
+from app.model.base import Base
 from .user_model import User, Role, RoleUser, Permission, RolePermission
 from .custom_model import Customer
 from .desk_model import Desk, DeskCustomer

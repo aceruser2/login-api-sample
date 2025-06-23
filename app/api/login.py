@@ -21,7 +21,9 @@ from app.schema import (
     LoginToken,
     LoginData,
     UserData,
+    CustomTakeOutVerify,
     CustomLoginData,
+    CustomDineVerify,
     DeskBindingRequest,
     DeskBindingResponse,
     ReleaseBindingRequest,
@@ -86,7 +88,7 @@ async def login_staff(
     try:
         # Validate input
         if not login_data.username or not login_data.password:
-            return HTTPException(
+            raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username and password are required",
             )
@@ -94,14 +96,14 @@ async def login_staff(
         # Get and verify user
         user = get_user_by_username(db, login_data.username)
         if not user:
-            return HTTPException(
+            raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
         if not user.check_password(login_data.password):
-            return HTTPException(
+            raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect password",
                 headers={"WWW-Authenticate": "Bearer"},
@@ -161,21 +163,22 @@ def refresh_staff(
         raise e
 
 
-@app.post("/token/dine-in")
+@app.post("/custom/email-send-code")
 async def login_dine_in_customer(
     login_data: CustomLoginData,
     db: Session = Depends(get_session),
 ) -> dict:
-    """Dine-in customer login first step - email verification"""
+    """customer login first step - email verification"""
     try:
         # Check if user exists
         user = get_customer_by_email(db, login_data.email)
+        new_user = False
         if user and user.customer_phone != login_data.phone:
-            return HTTPException(
+            raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Phone number does not match the existing account",
             )
-        else:
+        elif not user:
             user = create_customer(
                 db=db,
                 customer_name=login_data.custom_name,
@@ -183,9 +186,10 @@ async def login_dine_in_customer(
                 email=login_data.email,
                 is_verified=False,
             )
-
+            new_user = True
+            db.commit()
         if not can_send_new_code(login_data.email):
-            return HTTPException(
+            raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Please wait 5 minutes before requesting a new code",
             )
@@ -196,11 +200,11 @@ async def login_dine_in_customer(
 
         # Send verification email
         await send_verification_email(login_data.email, code)
-        db.commit()
+
         return {
             "message": "Verification code sent",
             "require_verification": True,
-            "is_new_user": user is None,
+            "is_new_user": new_user,
         }
 
     except Exception as e:
@@ -213,22 +217,22 @@ async def login_dine_in_customer(
 
 @app.post("/verify/dine-in")
 async def verify_dine_in(
-    login_data: CustomLoginData,
-    verification_code: str,
+    login_data: CustomDineVerify,
     db: Session = Depends(get_session),
 ) -> LoginToken:
+    "email code bind desktop"
     try:
         """Complete dine-in login after verification"""
-        if not verify_code(login_data.email, verification_code):
+        if not verify_code(login_data.email, login_data.verify_code):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid or expired verification code",
             )
 
         # Create or get user
-        user = get_customer_by_email(db, login_data.phone)
+        user = get_customer_by_email(db, login_data.email)
         if not user:
-            return HTTPException(
+            raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
         if user and user.is_verified == False:
@@ -237,7 +241,7 @@ async def verify_dine_in(
         # Verify and bind desk
         desk = get_desk_by_uuid(db, login_data.desk_uuid)
         if not desk:
-            return HTTPException(
+            raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Desk not found"
             )
 
@@ -245,17 +249,22 @@ async def verify_dine_in(
         active_binding = get_active_binding(db, login_data.email)
         if active_binding and active_binding.create_dt + timedelta(
             hours=1
-        ) > datetime.now(datetime.timezone.utc):
+        ) > datetime.now(timezone.utc):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Customer already has an active desk binding",
             )
 
         # Bind desk and generate tokens
-        bind_desk_to_customer(db, login_data.email, login_data.desk_uuid)
+        desk_to_customer = bind_desk_to_customer(
+            db, login_data.email, login_data.desk_uuid
+        )
         db.commit()
-
-        access_token, refresh_token = generate_custom_tokens(user.uuid)
+        desk_uuid = desk_to_customer.desk_uuid
+        extra_data = {"desk_uuid": desk_uuid}
+        access_token, refresh_token = generate_custom_tokens(
+            user.uuid, extra_data={"desk_uuid": desk_uuid}
+        )
 
         return LoginToken(
             access_token=access_token, refresh_token=refresh_token, token_type="bearer"
@@ -266,74 +275,28 @@ async def verify_dine_in(
         raise e
 
 
-@app.post("/token/takeout")
-async def login_takeout_customer(
-    login_data: CustomLoginData,
-    db: Session = Depends(get_session),
-) -> dict:
-    """Takeout customer login first step - email verification"""
-    try:
-        user = get_customer_by_email(db, login_data.phone)
-
-        if user and user.customer_phone != login_data.phone:
-            return HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Phone number does not match the existing account",
-            )
-        else:
-            user = create_customer(
-                db=db,
-                customer_name=login_data.custom_name,
-                customer_phone=login_data.phone,
-                email=login_data.email,
-                is_verified=False,
-            )
-        if not can_send_new_code(login_data.email):
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Please wait 5 minutes before requesting a new code",
-            )
-
-        code = generate_verification_code()
-        store_verification_code(login_data.email, code)
-        await send_verification_email(login_data.email, code)
-        db.commit()
-        return {
-            "message": "Verification code sent",
-            "require_verification": True,
-            "is_new_user": user is None,
-        }
-
-    except Exception as e:
-        log.critical(f"Email verification failed: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send verification code",
-        ) from e
-
-
 @app.post("/verify/takeout")
 async def verify_takeout(
-    login_data: CustomLoginData,
-    verification_code: str,
+    login_data: CustomTakeOutVerify,
     db: Session = Depends(get_session),
 ) -> LoginToken:
-    """Complete takeout login after verification"""
+    """email code complete takeout login after verification"""
     try:
-        if not verify_code(login_data.email, verification_code):
+        if not verify_code(login_data.email, login_data.verify_code):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid or expired verification code",
             )
-        user = get_customer_by_email(db, login_data.phone)
+        user = get_customer_by_email(db, login_data.email)
         if not user:
-            return HTTPException(
+            raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
         if user and user.is_verified == False:
             user.is_verified = True
             db.commit()
-        access_token, refresh_token = generate_custom_tokens(user.uuid)
+        access_token, refresh_token = generate_custom_tokens(user.uuid, {})
+        print(access_token,refresh_token)
         return LoginToken(
             access_token=access_token, refresh_token=refresh_token, token_type="bearer"
         )
