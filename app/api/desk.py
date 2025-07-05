@@ -9,13 +9,18 @@ from app.services.desk_service import (
     delete_desk,
 )
 from app.extension.sql_ext import get_session
+from app.extension.jwt_config import get_current_user
 import logging
 
 log = logging.getLogger(__name__)
 
 
 @app.post("/desk/create")
-def create_new_desk(desk_name: str, db: Session = Depends(get_session)):
+def create_new_desk(
+    desk_name: str,
+    db: Session = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
     try:
         desk = create_desk(db=db, desk_name=desk_name)
         db.commit()

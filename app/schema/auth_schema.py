@@ -30,15 +30,16 @@ class CustomLoginData(BaseModel):
 
 
 class CustomDineVerify(BaseModel):
-    custom_name: str
-    phone: str
+    """顧客內用驗證用 Schema"""
+
     email: str
     verify_code: str
     desk_uuid: str
 
 
 class CustomTakeOutVerify(BaseModel):
-    custom_name: str
-    phone: str
+    """顧客外帶驗證用 Schema"""
+
     email: str
     verify_code: str
+    phone: str

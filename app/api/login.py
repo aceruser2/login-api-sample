@@ -46,6 +46,16 @@ log = logging.getLogger(__name__)
 
 
 def generate_staff_tokens(user_uuid: str, extra_data: dict = None):
+    """
+    生成員工JWT令牌（訪問令牌和刷新令牌）
+
+    Args:
+        user_uuid (str): 員工UUID
+        extra_data (dict, optional): 額外需要包含在令牌中的數據
+
+    Returns:
+        tuple: (access_token, refresh_token) 訪問令牌和刷新令牌
+    """
     access_token_expires = timedelta(minutes=JwtEnv.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user_uuid, **(extra_data or {})},
@@ -59,6 +69,16 @@ def generate_staff_tokens(user_uuid: str, extra_data: dict = None):
 
 
 def generate_custom_tokens(custom_uuid: str, extra_data: dict = None):
+    """
+    生成顧客JWT令牌（訪問令牌和刷新令牌）
+
+    Args:
+        custom_uuid (str): 顧客UUID
+        extra_data (dict, optional): 額外需要包含在令牌中的數據
+
+    Returns:
+        tuple: (access_token, refresh_token) 訪問令牌和刷新令牌
+    """
     access_token_expires = timedelta(minutes=JwtEnv.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": custom_uuid, **(extra_data or {})},
@@ -76,14 +96,18 @@ async def login_staff(
     login_data: LoginData,
     db: Session = Depends(get_session),
 ) -> LoginToken:
-    """Standard user login
-    test ok
-    {
-        "access_token": "dfsd",
-        "refresh_token": "sdf",
-        "token_type": "bearer"
-    }
-    Authenticates a user and returns access & refresh tokens with role/permission info
+    """
+    員工登入端點
+
+    Args:
+        login_data (LoginData): 包含使用者名稱和密碼的登入資料
+        db (Session): 資料庫連線
+
+    Returns:
+        LoginToken: 包含訪問令牌和刷新令牌的響應
+
+    Raises:
+        HTTPException: 當登入失敗時
     """
     try:
         # Validate input
@@ -142,12 +166,14 @@ async def login_staff(
             access_token=access_token, refresh_token=refresh_token, token_type="bearer"
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         log.critical(
             f"Login failed for user {login_data.username}: {e} {e.__traceback__.tb_lineno}",
             exc_info=True,
         )
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/refresh/staff")
@@ -155,6 +181,16 @@ def refresh_staff(
     db: Session = Depends(get_session),
     refresh_get_current_user: User = Depends(refresh_get_current_user),
 ) -> Token:
+    """
+    刷新員工訪問令牌
+
+    Args:
+        db (Session): 資料庫連線
+        refresh_get_current_user (User): 從刷新令牌獲取的當前使用者
+
+    Returns:
+        Token: 包含新訪問令牌的響應
+    """
     try:
         access_token, _ = generate_staff_tokens(refresh_get_current_user)
         return Token(access_token=access_token, token_type="bearer")
@@ -168,7 +204,19 @@ async def login_dine_in_customer(
     login_data: CustomLoginData,
     db: Session = Depends(get_session),
 ) -> dict:
-    """customer login first step - email verification"""
+    """
+    顧客登入第一步 - 發送電子郵件驗證碼
+
+    Args:
+        login_data (CustomLoginData): 包含姓名、電話和電子郵件的顧客資料
+        db (Session): 資料庫連線
+
+    Returns:
+        dict: 包含驗證結果和顧客狀態的響應
+
+    Raises:
+        HTTPException: 當發送失敗或請求過於頻繁時
+    """
     try:
         # Check if user exists
         user = get_customer_by_email(db, login_data.email)
@@ -207,12 +255,15 @@ async def login_dine_in_customer(
             "is_new_user": new_user,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
+        db.rollback()
         log.critical(f"Email verification failed: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send verification code",
-        ) from e
+        )
 
 
 @app.post("/verify/dine-in")
@@ -220,7 +271,19 @@ async def verify_dine_in(
     login_data: CustomDineVerify,
     db: Session = Depends(get_session),
 ) -> LoginToken:
-    "email code bind desktop"
+    """
+    內用顧客驗證碼確認並綁定桌位
+
+    Args:
+        login_data (CustomDineVerify): 包含電子郵件、驗證碼和桌位UUID的資料
+        db (Session): 資料庫連線
+
+    Returns:
+        LoginToken: 包含訪問令牌和刷新令牌的響應
+
+    Raises:
+        HTTPException: 當驗證失敗或桌位不存在時
+    """
     try:
         """Complete dine-in login after verification"""
         if not verify_code(login_data.email, login_data.verify_code):
@@ -245,14 +308,15 @@ async def verify_dine_in(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Desk not found"
             )
 
-        # Check active binding
+        # Check active binding - 增加註解說明綁定有效期為1小時
         active_binding = get_active_binding(db, login_data.email)
         if active_binding and active_binding.create_dt + timedelta(
             hours=1
         ) > datetime.now(timezone.utc):
+            # 如果已有未過期的綁定（1小時內），則拒絕新的綁定
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Customer already has an active desk binding",
+                detail="Customer already has an active desk binding (valid for 1 hour)",
             )
 
         # Bind desk and generate tokens
@@ -280,7 +344,19 @@ async def verify_takeout(
     login_data: CustomTakeOutVerify,
     db: Session = Depends(get_session),
 ) -> LoginToken:
-    """email code complete takeout login after verification"""
+    """
+    外帶顧客驗證碼確認
+
+    Args:
+        login_data (CustomTakeOutVerify): 包含電子郵件和驗證碼的資料
+        db (Session): 資料庫連線
+
+    Returns:
+        LoginToken: 包含訪問令牌和刷新令牌的響應
+
+    Raises:
+        HTTPException: 當驗證失敗時
+    """
     try:
         if not verify_code(login_data.email, login_data.verify_code):
             raise HTTPException(
@@ -296,7 +372,7 @@ async def verify_takeout(
             user.is_verified = True
             db.commit()
         access_token, refresh_token = generate_custom_tokens(user.uuid, {})
-        print(access_token,refresh_token)
+        print(access_token, refresh_token)
         return LoginToken(
             access_token=access_token, refresh_token=refresh_token, token_type="bearer"
         )
@@ -307,34 +383,72 @@ async def verify_takeout(
 
 
 @app.post("/desk-customer/", response_model=DeskBindingResponse)
-def bind_desk(request: DeskBindingRequest, db: Session = Depends(get_session)):
-    """Bind a desk to a customer"""
-    active_binding = get_active_binding(db, request.customer_email)
-    if active_binding and active_binding.create_dt + timedelta(hours=1) > datetime.now(
-        timezone.utc
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Customer already has an active desk binding",
+def bind_desk(
+    request: DeskBindingRequest,
+    db: Session = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    """
+    綁定顧客與桌位 - 員工操作或顧客自助
+    """
+    try:
+        # 檢查現有綁定
+        try:
+            active_binding = get_active_binding(db, request.customer_email)
+            if active_binding and active_binding.create_dt + timedelta(
+                hours=1
+            ) > datetime.now(timezone.utc):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Customer already has an active desk binding",
+                )
+        except ValueError:
+            # 沒有現有綁定，可以繼續
+            pass
+
+        # 驗證桌位是否存在
+        desk = get_desk_by_uuid(db, request.desk_uuid)
+        if not desk:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Desk not found"
+            )
+
+        binding = bind_desk_to_customer(db, request.customer_email, request.desk_uuid)
+        db.commit()
+        return DeskBindingResponse(
+            desk_uuid=binding.desk_uuid,
+            customer_uuid=binding.customer_uuid,
+            create_dt=binding.create_dt,
         )
-    binding = bind_desk_to_customer(db, request.customer_phone, request.desk_uuid)
-    return DeskBindingResponse(
-        desk_uuid=binding.desk_uuid,
-        customer_uuid=binding.customer_uuid,
-        create_dt=binding.create_dt,
-    )
+    except Exception as e:
+        db.rollback()
+        log.critical(e, exc_info=True)
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/desk-customer/active", response_model=DeskBindingResponse)
 def get_active_desk_binding(customer_email: str, db: Session = Depends(get_session)):
-    """Retrieve active desk binding for a customer"""
+    """
+    獲取顧客活躍的桌位綁定（1小時內）
+
+    Args:
+        customer_email (str): 顧客電子郵件
+        db (Session): 資料庫連線
+
+    Returns:
+        DeskBindingResponse: 活躍的桌位綁定
+
+    Raises:
+        HTTPException: 當找不到活躍的桌位綁定時
+    """
     binding = get_active_binding(db, customer_email)
+    # 檢查是否存在綁定且未過期（1小時有效期）
     if not binding or binding.create_dt + timedelta(hours=1) <= datetime.now(
         timezone.utc
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active desk binding found",
+            detail="No active desk binding found or binding has expired (1 hour limit)",
         )
     return DeskBindingResponse(
         desk_uuid=binding.desk_uuid,
@@ -345,7 +459,19 @@ def get_active_desk_binding(customer_email: str, db: Session = Depends(get_sessi
 
 @app.post("/desk-customer/release", response_model=ReleaseBindingResponse)
 def release_desk(request: ReleaseBindingRequest, db: Session = Depends(get_session)):
-    """Release desk binding for a customer"""
+    """
+    釋放顧客的桌位綁定
+
+    Args:
+        request (ReleaseBindingRequest): 包含顧客電子郵件的請求
+        db (Session): 資料庫連線
+
+    Returns:
+        ReleaseBindingResponse: 釋放結果
+
+    Raises:
+        HTTPException: 當找不到活躍的桌位綁定時
+    """
     binding = get_active_binding(db, request.customer_email)
     if not binding or binding.create_dt + timedelta(hours=1) <= datetime.now(
         timezone.utc
@@ -365,7 +491,21 @@ def update_customer(
     customer_phone: Optional[str] = None,
     db: Session = Depends(get_session),
 ):
-    """更新顧客資訊"""
+    """
+    更新顧客資訊
+
+    Args:
+        customer_uuid (str): 顧客UUID
+        customer_name (str, optional): 新的顧客姓名
+        customer_phone (str, optional): 新的顧客電話
+        db (Session): 資料庫連線
+
+    Returns:
+        Customer: 更新後的顧客資訊
+
+    Raises:
+        HTTPException: 當更新失敗時
+    """
     try:
         return update_customer(
             db=db,
@@ -380,8 +520,24 @@ def update_customer(
 
 @app.delete("/customer/delete")
 def delete_customer(customer_uuid: str, db: Session = Depends(get_session)):
-    """刪除顧客"""
+    """
+    刪除顧客（軟刪除）
+
+    Args:
+        customer_uuid (str): 顧客UUID
+        db (Session): 資料庫連線
+
+    Returns:
+        Customer: 被刪除的顧客資訊
+
+    Raises:
+        HTTPException: 當刪除失敗時
+    """
     try:
+        return delete_customer(db=db, customer_uuid=customer_uuid)
+    except Exception as e:
+        log.critical(e, exc_info=True)
+        raise HTTPException(status_code=400, detail="delete customer error")
         return delete_customer(db=db, customer_uuid=customer_uuid)
     except Exception as e:
         log.critical(e, exc_info=True)

@@ -1,5 +1,6 @@
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from typing import List
 from app import app
 from app.services.order_service import (
     create_order,
@@ -8,7 +9,7 @@ from app.services.order_service import (
     get_order_by_uuid,
 )
 from app.extension.sql_ext import get_session
-from app.schema import OrderCreate, OrderUpdate, OrderResponse
+from app.schema import OrderCreate, OrderResponse
 from app.extension.jwt_config import get_current_user
 import logging
 
@@ -21,11 +22,17 @@ async def create_new_order(
     db: Session = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
-    if order.customer_uuid != current_user.uuid:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Can only create orders for yourself",
-        )
+    # 顧客只能為自己創建訂單
+    if hasattr(current_user, "user_status") and current_user.user_status in [
+        2,
+        3,
+    ]:  # Customer
+        if order.customer_uuid != current_user.uuid:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Can only create orders for yourself",
+            )
+    # 員工可以為任何顧客創建訂單
     try:
         order_obj = create_order(db=db, order=order)
         db.commit()
@@ -36,7 +43,7 @@ async def create_new_order(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.get("/orders/", response_model=list[OrderResponse])
+@app.get("/orders/", response_model=List[OrderResponse])
 async def list_orders(
     skip: int = 0,
     limit: int = 20,
@@ -46,7 +53,8 @@ async def list_orders(
 ):
     try:
         orders = get_orders(db=db, skip=skip, limit=limit, status=status)
-        if current_user.user_status in [2, 3]:
+        # 如果是顧客，只能看到自己的訂單
+        if hasattr(current_user, "user_status") and current_user.user_status in [2, 3]:
             orders = [o for o in orders if o.customer_uuid == current_user.uuid]
         return orders
     except Exception as e:
@@ -61,7 +69,11 @@ async def update_order(
     db: Session = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
-    if current_user.user_status in [2, 3]:
+    # 只有員工可以更新訂單狀態
+    if hasattr(current_user, "user_status") and current_user.user_status in [
+        2,
+        3,
+    ]:  # Customer
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only staff can update order status",
