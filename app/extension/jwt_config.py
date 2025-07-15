@@ -3,12 +3,12 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi import Depends, FastAPI, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jwt.exceptions import InvalidTokenError
+from jwt.exceptions import InvalidTokenError, PyJWTError
 from pydantic import BaseModel
 import bcrypt
 from app.config import JwtEnv
 from app.schema import TokenData
-from app.services.user_service import get_user_by_username
+from app.services.user_service import get_user_by_uuid
 from sqlalchemy.orm import Session
 from app.extension.sql_ext import get_session
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -70,31 +70,42 @@ def generate_tokens(user_uuid: str, extra_data: dict = None):
 
 
 async def get_current_user(
-    bearer: HTTPAuthorizationCredentials = Depends(auth_scheme),
     db: Session = Depends(get_session),
+    token: str = Depends(OAuth2PasswordBearer(tokenUrl="token")),
 ):
+    """獲取當前用戶"""
     credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
+        status_code=401,
         detail="Could not validate credentials",
-        headers={"token": "Bearer"},
+        headers={"WWW-Authenticate": "Bearer"},
     )
 
     try:
-        token = None
-        if bearer:
-            token = str(bearer.credentials)
-        if not token:
-            raise credentials_exception
         payload = jwt.decode(
             token, JwtEnv.SECRET_KEY, algorithms=[JwtEnv.ALGORITHM_LOGIN]
         )
-        user: str = payload.get("sub")
-        if user is None:
+        user_uuid: str = payload.get("sub")
+        if user_uuid is None:
             raise credentials_exception
-        return user
 
-    except InvalidTokenError:
+        token_data = TokenData(user_uuid=user_uuid)
+    except PyJWTError:
         raise credentials_exception
+
+    user = get_user_by_uuid(db, user_uuid=token_data.user_uuid)
+    if user is None:
+        raise credentials_exception
+
+    return user
+
+
+async def get_current_active_user(
+    current_user=Depends(get_current_user),
+):
+    """獲取當前活躍用戶"""
+    if current_user.soft_delete:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return current_user
 
 
 async def refresh_get_current_user(
@@ -124,3 +135,6 @@ async def refresh_get_current_user(
 
     except InvalidTokenError:
         raise credentials_exception
+
+
+

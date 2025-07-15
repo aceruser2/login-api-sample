@@ -1,10 +1,5 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
-
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, text
 from app.model.base import Base
-import uuid
 
 
 class Inventory(Base):
@@ -12,14 +7,16 @@ class Inventory(Base):
 
     __tablename__ = "inventory"
 
-    uuid = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    menu_item_uuid = Column(
-        UUID(as_uuid=True), ForeignKey("menu_items.uuid"), nullable=False
-    )
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
+    menu_item_uuid = Column(String, nullable=False)  # 純UUID外鍵，不使用ForeignKey
     stock_quantity = Column(Integer, nullable=False, default=0)  # 剩餘庫存
     low_stock_threshold = Column(Integer, nullable=False, default=5)  # 低庫存閾值
-    update_dt = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
     soft_delete = Column(Boolean, default=False)
-
-    # 關聯菜單項
-    menu_item = relationship("MenuItem", back_populates="inventory")
+    create_dt = Column(DateTime, server_default=text("timezone('utc', now())"))
+    update_dt = Column(
+        DateTime,
+        server_default=text("timezone('utc', now())"),
+        onupdate=text("timezone('utc', now())"),
+    )
+    soft_delete = Column(Boolean, default=False)

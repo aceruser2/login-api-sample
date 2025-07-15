@@ -14,6 +14,7 @@ class LoginToken(BaseModel):
 
 
 class TokenData(BaseModel):
+    user_uuid:str
     user_or_desk: Union[str, int] = None
     extra: Optional[int] = None
 

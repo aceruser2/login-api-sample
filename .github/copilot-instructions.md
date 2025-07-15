@@ -20,7 +20,7 @@
 
 ```python
 @router.post("/", response_model=UserSchema)
-def create_user(data: CreateUserSchema, db: Session = Depends(get_db)):
+def create_user(data: CreateUserSchema, db: Session = Depends(get_session)):
     try:
         user = user_service.create_user(data, db)
         db.commit()
@@ -100,8 +100,8 @@ schema/user_schema.py
 🧰 補充工具建議
 通用邏輯請放在 utils/ 目錄
 
-如：generate_uuid(), hash_password()
-
+如： hash_password()
+對了uuid跟時間是postgre自己生成
 錯誤處理統一用 Python 例外，在 API 層轉換為 HTTP 回應
 
 📁 推薦目錄結構
@@ -174,6 +174,9 @@ results = db.execute(stmt).scalars().all()
 簡單總結：  
 - 只查一個欄位/模型 → 用 `scalar()`  
 - 查多個欄位/模型 → 用 `first()`、`one()`、`all()`
+
+3. 所有的model我沒打算用relationship **
+我比較傾向在表放入對應表的uuid在做對應的join連結
 
 # GitHub Copilot 對提問解題思路
 
@@ -309,3 +312,24 @@ C[限流熔斷] --> D[異步補償]
 建立回滾預案：10分鐘內回退至穩定版本
 **結果**：系統恢復後連續90天無同類故障[3][4]
 ```
+
+
+# tests 集
+用pytest框架測試fastapi
+但是custom-dine 和custom-take 不用測
+他們是郵信箱登入驗證我已測過
+直接生成對應的token給需要的api使用即可
+這裡的user是指staff只需測staff的登入因為它們是一般登入
+目前登入測試通過邏輯確定
+但是訂單權限測試有問題
+例如顧客custom外帶或內用登入完的token
+應該可針對他自己的單進行修改直到送出後
+舊有的單不能改
+只能user員工協助調整
+亦即user有所有權限
+所以請依現有model欄位
+做一個兼容的token接收
+再依據它們的權限做對應的事
+
+訂單的狀態應該用狀態碼對應並在model寫comment
+不該用字串

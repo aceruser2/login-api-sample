@@ -19,7 +19,7 @@ class Desk(Base):
 class DeskCustomer(Base):
     __tablename__ = "desk_customer"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    desk_uuid = Column(String)
+    desk_uuid = Column(String, server_default=text("uuid_generate_v4()"), index=True)
     customer_uuid = Column(String)
     soft_delete = Column(Boolean, default=False)
     create_dt = Column(DateTime, server_default=text("timezone('utc', now())"))

@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app import app
 from app.services.payment_service import create_payment
@@ -16,15 +16,15 @@ async def process_payment(
     db: Session = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
-    # 只有員工可以處理支付
-    if hasattr(current_user, "user_status") and current_user.user_status in [
-        2,
-        3,
-    ]:  # Customer
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only staff can process payments",
-        )
+    """處理支付"""
+    try:
+        result = create_payment(db=db, payment=payment)
+        db.commit()
+        return result
+    except Exception as e:
+        db.rollback()
+        log.critical(e, exc_info=True)
+        raise HTTPException(status_code=400, detail=str(e))
     try:
         result = create_payment(db=db, payment=payment)
         db.commit()

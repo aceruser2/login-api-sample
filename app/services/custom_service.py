@@ -14,43 +14,25 @@ def create_customer(
 ):
     """
     創建新顧客或獲取已存在的顧客
-
-    Args:
-        db (Session): 資料庫連線
-        customer_name (str): 顧客姓名
-        customer_phone (str): 顧客電話
-        email (str): 顧客電子郵件（主要識別鍵）
-        is_verified (bool): 是否已驗證
-
-    Returns:
-        Customer: 新建或已存在的顧客
-
-    Raises:
-        ValueError: 當電子郵件已與其他電話綁定或電話已與其他電子郵件綁定時
     """
-    existing_customer = db.execute(
-        select(Customer).where(
-            Customer.email == email,
-            Customer.soft_delete == False,
-        )
-    ).scalar()
+    stmt = select(Customer).where(
+        Customer.email == email,
+        Customer.soft_delete == False,
+    )
+    existing_customer = db.execute(stmt).scalar_one_or_none()
 
     if existing_customer:
-        # 若電話不同，視為換號，建議提示或軟刪原資料,但電話還是得認證尚未實作
         if existing_customer.customer_phone != customer_phone:
             raise ValueError("此信箱已綁定其他手機號，請聯絡客服或用原手機號登入")
         return existing_customer
 
-    # 檢查 email 是否已被其他帳號使用（已於上方判斷）
-    # 檢查手機號是否已被其他帳號使用（可選，視需求保留）
-    phone_customer = db.execute(
-        select(Customer).where(
-            Customer.customer_phone == customer_phone,
-            Customer.soft_delete == False,
-        )
-    ).scalar()
+    # 檢查手機號是否已被其他帳號使用
+    phone_stmt = select(Customer).where(
+        Customer.customer_phone == customer_phone,
+        Customer.soft_delete == False,
+    )
+    phone_customer = db.execute(phone_stmt).scalar_one_or_none()
     if phone_customer:
-        # 若同手機但不同 email，仍可提示
         if phone_customer.email != email:
             raise ValueError("此手機號已被其他帳號使用")
 
@@ -68,41 +50,21 @@ def create_customer(
 def get_customer_by_email(db: Session, email: str):
     """
     通過電子郵件查詢顧客
-
-    Args:
-        db (Session): 資料庫連線
-        email (str): 顧客電子郵件
-
-    Returns:
-        Customer: 查詢到的顧客，如未找到則返回None
     """
-    customer = db.execute(
-        select(Customer).where(Customer.email == email, Customer.soft_delete == False)
-    ).scalar()
-    if not customer:
-        return None
-    return customer
+    stmt = select(Customer).where(
+        Customer.email == email, Customer.soft_delete == False
+    )
+    return db.execute(stmt).scalar_one_or_none()
 
 
 def get_customer_by_uuid(db: Session, customer_uuid: str):
     """
     通過UUID查詢顧客
-
-    Args:
-        db (Session): 資料庫連線
-        customer_uuid (str): 顧客UUID
-
-    Returns:
-        Customer: 查詢到的顧客
-
-    Raises:
-        ValueError: 當找不到顧客時
     """
-    customer = db.execute(
-        select(Customer).where(
-            Customer.uuid == customer_uuid, Customer.soft_delete == False
-        )
-    ).scalar()
+    stmt = select(Customer).where(
+        Customer.uuid == customer_uuid, Customer.soft_delete == False
+    )
+    customer = db.execute(stmt).scalar_one_or_none()
     if not customer:
         raise ValueError("customer not found")
     return customer
@@ -111,26 +73,14 @@ def get_customer_by_uuid(db: Session, customer_uuid: str):
 def create_desk_customer(db: Session, desk_uuid: str, customer_uuid: str):
     """
     內用顧客綁定桌位（1小時內有效）
-
-    Args:
-        db (Session): 資料庫連線
-        desk_uuid (str): 桌位UUID
-        customer_uuid (str): 顧客UUID
-
-    Returns:
-        DeskCustomer: 成功建立的桌位綁定
-
-    Raises:
-        ValueError: 當顧客已有活躍的桌位綁定時
     """
     one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
-    active_binding = db.execute(
-        select(DeskCustomer).where(
-            DeskCustomer.customer_uuid == customer_uuid,
-            DeskCustomer.soft_delete == False,
-            DeskCustomer.create_dt >= one_hour_ago,
-        )
-    ).scalar()
+    stmt = select(DeskCustomer).where(
+        DeskCustomer.customer_uuid == customer_uuid,
+        DeskCustomer.soft_delete == False,
+        DeskCustomer.create_dt >= one_hour_ago,
+    )
+    active_binding = db.execute(stmt).scalar_one_or_none()
 
     if active_binding:
         raise ValueError("Already assigned to a desk")
@@ -140,34 +90,25 @@ def create_desk_customer(db: Session, desk_uuid: str, customer_uuid: str):
         customer_uuid=customer_uuid,
     )
     db.add(new_binding)
-    db.flush(new_binding)
+    db.flush()
     return new_binding
 
 
 def get_active_desk_customer(db: Session, customer_email: str):
     """
     查詢顧客目前有效的桌位綁定（1小時內）
-
-    Args:
-        db (Session): 資料庫連線
-        customer_email (str): 顧客電子郵件
-
-    Returns:
-        DeskCustomer: 有效的桌位綁定
-
-    Raises:
-        ValueError: 當找不到有效的桌位綁定時
     """
     customer = get_customer_by_email(db, customer_email)
+    if not customer:
+        raise ValueError("Customer not found")
 
     one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
-    desk_customer = db.execute(
-        select(DeskCustomer).where(
-            DeskCustomer.customer_uuid == customer.uuid,
-            DeskCustomer.soft_delete == False,
-            DeskCustomer.create_dt >= one_hour_ago,
-        )
-    ).scalar()
+    stmt = select(DeskCustomer).where(
+        DeskCustomer.customer_uuid == customer.uuid,
+        DeskCustomer.soft_delete == False,
+        DeskCustomer.create_dt >= one_hour_ago,
+    )
+    desk_customer = db.execute(stmt).scalar_one_or_none()
 
     if not desk_customer:
         raise ValueError("No active desk binding found")
@@ -178,23 +119,12 @@ def get_active_desk_customer(db: Session, customer_email: str):
 def release_desk_binding(db: Session, customer_uuid: str):
     """
     釋放顧客的桌位綁定（結帳時調用）
-
-    Args:
-        db (Session): 資料庫連線
-        customer_uuid (str): 顧客UUID
-
-    Returns:
-        dict: 包含釋放結果訊息的字典
-
-    Raises:
-        ValueError: 當找不到活躍的桌位綁定時
     """
-    desk_customer = db.execute(
-        select(DeskCustomer).where(
-            DeskCustomer.customer_uuid == customer_uuid,
-            DeskCustomer.soft_delete == False,
-        )
-    ).scalar()
+    stmt = select(DeskCustomer).where(
+        DeskCustomer.customer_uuid == customer_uuid,
+        DeskCustomer.soft_delete == False,
+    )
+    desk_customer = db.execute(stmt).scalar_one_or_none()
 
     if not desk_customer:
         raise ValueError("no active desk binding")

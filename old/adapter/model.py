@@ -317,6 +317,7 @@ class Customer(Base):
         onupdate=func.timezone("utc", func.now()),
     )
     """
+
     __tablename__ = "customers"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

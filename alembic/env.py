@@ -19,6 +19,7 @@ sys.path.append(BASE_DIR)
 config = context.config
 
 from app.config import sqlconn
+
 db_url = URL.create(
     drivername=sqlconn.drivername,
     username=sqlconn.username,

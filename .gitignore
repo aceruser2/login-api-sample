@@ -138,3 +138,18 @@ dmypy.json
 cython_debug/
 
 logs/*log.*
+
+pg-data
+dump.rdb
+redis-data
+
+# Test coverage and artifacts
+.coverage
+.pytest_cache/
+htmlcov/
+*.cover
+.hypothesis/
+
+# Test databases
+test_*.db
+test_*.sqlite

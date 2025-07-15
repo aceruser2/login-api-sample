@@ -1,32 +1,39 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import select, outerjoin
+from sqlalchemy import select
 from datetime import datetime
-from app.model import MenuItem, Inventory
-from app.schema import MenuItemCreate, MenuItemUpdate, MenuItemWithInventory
+from app.model import MenuItem
+from app.schema import MenuItemCreate, MenuItemUpdate
+from typing import List, Optional
 
 
 def create_menu_item(db: Session, item: MenuItemCreate):
+    """創建菜單項目"""
     db_item = MenuItem(**item.model_dump())
     db.add(db_item)
     return db_item
 
 
-def get_menu_items(db: Session, skip: int = 0, limit: int = 20, category: str = None):
-    query = select(MenuItem).where(MenuItem.soft_delete == False)
+def get_menu_items(
+    db: Session, skip: int = 0, limit: int = 20, category: Optional[str] = None
+) -> List[MenuItem]:
+    """獲取菜單項目列表"""
+    stmt = (
+        select(MenuItem).where(MenuItem.soft_delete == False).offset(skip).limit(limit)
+    )
     if category:
-        query = query.where(MenuItem.category == category)
-    return db.execute(query.offset(skip).limit(limit)).scalars().all()
+        stmt = stmt.where(MenuItem.category == category)
+    return db.execute(stmt).scalars().all()
 
 
 def get_menu_items_with_inventory(
-    db: Session, skip: int = 0, limit: int = 20, category: str = None
+    db: Session, skip: int = 0, limit: int = 20, category: Optional[str] = None
 ):
     """獲取帶庫存信息的菜單項目"""
-    query = select(MenuItem).where(MenuItem.soft_delete == False)
+    stmt = select(MenuItem).where(MenuItem.soft_delete == False)
     if category:
-        query = query.where(MenuItem.category == category)
+        stmt = stmt.where(MenuItem.category == category)
 
-    items = db.execute(query.offset(skip).limit(limit)).scalars().all()
+    items = db.execute(stmt.offset(skip).limit(limit)).scalars().all()
 
     # 增加庫存狀態檢查
     for item in items:
@@ -38,11 +45,11 @@ def get_menu_items_with_inventory(
 
 
 def update_menu_item(db: Session, item_uuid: str, item: MenuItemUpdate):
-    db_item = db.execute(
-        select(MenuItem).where(
-            MenuItem.uuid == item_uuid, MenuItem.soft_delete == False
-        )
-    ).scalar_one_or_none()
+    """更新菜單項目"""
+    stmt = select(MenuItem).where(
+        MenuItem.uuid == item_uuid, MenuItem.soft_delete == False
+    )
+    db_item = db.execute(stmt).scalar_one_or_none()
 
     if not db_item:
         raise ValueError("Menu item not found")
@@ -55,11 +62,10 @@ def update_menu_item(db: Session, item_uuid: str, item: MenuItemUpdate):
 
 def update_item_inventory(db: Session, item_uuid: str, quantity: int):
     """更新商品庫存"""
-    item = db.execute(
-        select(MenuItem).where(
-            MenuItem.uuid == item_uuid, MenuItem.soft_delete == False
-        )
-    ).scalar_one_or_none()
+    stmt = select(MenuItem).where(
+        MenuItem.uuid == item_uuid, MenuItem.soft_delete == False
+    )
+    item = db.execute(stmt).scalar_one_or_none()
 
     if not item:
         raise ValueError(f"Menu item {item_uuid} not found")
@@ -86,11 +92,10 @@ def update_item_inventory(db: Session, item_uuid: str, quantity: int):
 
 def delete_menu_item(db: Session, item_uuid: str):
     """軟刪除菜單項目"""
-    item = db.execute(
-        select(MenuItem).where(
-            MenuItem.uuid == item_uuid, MenuItem.soft_delete == False
-        )
-    ).scalar_one_or_none()
+    stmt = select(MenuItem).where(
+        MenuItem.uuid == item_uuid, MenuItem.soft_delete == False
+    )
+    item = db.execute(stmt).scalar_one_or_none()
 
     if not item:
         raise ValueError("Menu item not found")

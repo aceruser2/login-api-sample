@@ -163,7 +163,7 @@ def create_user(
     email: str = None,
     gender: str = None,
     true_name: str = None,
-    role_uuid: int = None,
+    role_uuid: str = None,
 ):
     """用sqlalchemy建立使用者的函式
     員工用
@@ -173,19 +173,30 @@ def create_user(
         role = get_role_and_permission_by_role_uuid(db, role_uuid)
         if role is None:
             raise ValueError("role not found")
+
     if username == "" or username is None:
         raise ValueError("username error")
-    if get_user_by_username(db, username) is not None:
+
+    existing_user = get_user_by_username(db, username)
+    if existing_user is not None:
         raise ValueError("username already exist")
+
     info_data = {"gender": gender, "true_name": true_name}
     new_user = User(username=username, email=email, info=info_data)
+
+    # 使用 setter 設置密碼（會自動加密）
     new_user.password = password
+
     db.add(new_user)
-    db.flush()  # 先 flush 讓 create_user.uuid 產生
+    db.flush()  # 先 flush 讓 new_user.uuid 產生
+
+    # 如果指定了角色，建立角色關聯
     if role_uuid:
         role_user = RoleUser(user_uuid=new_user.uuid, role_uuid=role_uuid)
         db.add(role_user)
         db.flush()
+
+    log.info(f"Created user: {new_user.username} with UUID: {new_user.uuid}")
     return new_user
 
 

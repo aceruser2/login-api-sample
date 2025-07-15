@@ -3,6 +3,9 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from app.model.base import Base, PGPEncryptString, encrypted_jsonb_type
 import bcrypt
+import logging
+
+log = logging.getLogger(__name__)
 
 
 class User(Base):
@@ -27,13 +30,42 @@ class User(Base):
 
     @password.setter
     def password(self, value):
-        self._password = bcrypt.hashpw(value.encode("utf-8"), bcrypt.gensalt())
+        """設置密碼時自動加密"""
+        if value:
+            # 統一使用 utf-8 編碼
+            salt = bcrypt.gensalt()
+            hashed = bcrypt.hashpw(value.encode("utf-8"), salt)
+            # 將 bytes 轉為 string 存儲，保持一致性
+            self._password = hashed.decode("utf-8")
+        else:
+            self._password = None
 
     @hybrid_method
-    def check_password(self, value):
-        if not self._password:
+    def check_password(self, value: str) -> bool:
+        """檢查密碼"""
+        if not self._password or not value:
             return False
-        return bcrypt.checkpw(value.encode("utf-8"), self._password)
+
+        try:
+            # 確保存儲的密碼是 bytes 格式進行比較
+            if isinstance(self._password, str):
+                stored_password = self._password.encode("utf-8")
+            else:
+                stored_password = self._password
+
+            # 確保輸入密碼是 str 格式
+            if isinstance(value, bytes):
+                check_value = value.decode("utf-8")
+            else:
+                check_value = value
+
+            result = bcrypt.checkpw(check_value.encode("utf-8"), stored_password)
+            log.debug(f"Password check for user {self.username}: {result}")
+            return result
+
+        except Exception as e:
+            log.error(f"Password check failed for user {self.username}: {e}")
+            return False
 
 
 class Role(Base):

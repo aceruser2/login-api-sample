@@ -26,12 +26,22 @@ class HostConfig(object):
 
 
 class sqlconn(object):
-    drivername = os.environ.get("drivername","postgresql+psycopg2")
-    username = os.environ.get("db_user",)
-    password = os.environ.get("db_pass",)
-    host = os.environ.get("db_host",)
-    port = os.environ.get("db_port",)
-    database = os.environ.get("dbname",)
+    drivername = os.environ.get("drivername", "postgresql+psycopg2")
+    username = os.environ.get(
+        "db_user",
+    )
+    password = os.environ.get(
+        "db_pass",
+    )
+    host = os.environ.get(
+        "db_host",
+    )
+    port = os.environ.get(
+        "db_port",
+    )
+    database = os.environ.get(
+        "dbname",
+    )
     pgp_pass = os.environ.get("PGP_PASSPHRASE", "gdfgshshtfdjdhdjdgds")
 
 

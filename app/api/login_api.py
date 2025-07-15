@@ -1,5 +1,5 @@
 from datetime import timedelta, datetime, timezone
-from fastapi import Depends, HTTPException, status, APIRouter
+from fastapi import APIRouter, Depends, HTTPException, status
 from app import app
 from app.config import JwtEnv
 from app.services.user_service import (
@@ -13,6 +13,8 @@ from app.services.custom_service import (
     bind_desk_to_customer,
     get_active_binding,
     release_binding,
+    update_customer as update_customer_service,
+    delete_customer as delete_customer_service,
 )
 from app.services.desk_service import get_desk_by_uuid
 from app.extension.sql_ext import get_session, Session
@@ -29,9 +31,13 @@ from app.schema import (
     ReleaseBindingRequest,
     ReleaseBindingResponse,
 )
-from app.extension.jwt_config import create_access_token, create_refresh_token
+from app.extension.jwt_config import (
+    create_access_token,
+    create_refresh_token,
+    refresh_get_current_user,
+    get_current_user,
+)
 from app.model import User, Role, Permission
-from app.extension.jwt_config import refresh_get_current_user
 from typing import Union, Optional
 import logging
 from app.extension.redis_utils import (
@@ -144,7 +150,7 @@ async def login_staff(
         extra_data = {"roles": [], "roles_permissions": []}
         log.info(all_user_role)
         if all_user_role:
-            # Assuming roles_permissions contains RoleUser objects with relationships
+            # 處理用戶角色權限資料
             for user, role, permission in all_user_role:
                 if role and permission:
                     role_data = {
@@ -266,34 +272,20 @@ async def login_dine_in_customer(
         )
 
 
-@app.post("/verify/dine-in")
-async def verify_dine_in(
-    login_data: CustomDineVerify,
-    db: Session = Depends(get_session),
-) -> LoginToken:
-    """
-    內用顧客驗證碼確認並綁定桌位
-
-    Args:
-        login_data (CustomDineVerify): 包含電子郵件、驗證碼和桌位UUID的資料
-        db (Session): 資料庫連線
-
-    Returns:
-        LoginToken: 包含訪問令牌和刷新令牌的響應
-
-    Raises:
-        HTTPException: 當驗證失敗或桌位不存在時
-    """
+@app.post("/verify/dine-in", response_model=LoginToken)
+def verify_dine_in(
+    verification_data: CustomDineVerify, db: Session = Depends(get_session)
+):
+    """內用驗證"""
     try:
-        """Complete dine-in login after verification"""
-        if not verify_code(login_data.email, login_data.verify_code):
+        # 驗證碼驗證
+        if not verify_code(verification_data.email, verification_data.verify_code):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid or expired verification code",
+                status_code=400, detail="Invalid or expired verification code"
             )
 
         # Create or get user
-        user = get_customer_by_email(db, login_data.email)
+        user = get_customer_by_email(db, verification_data.email)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -302,14 +294,14 @@ async def verify_dine_in(
             user.is_verified = True
             db.commit()
         # Verify and bind desk
-        desk = get_desk_by_uuid(db, login_data.desk_uuid)
+        desk = get_desk_by_uuid(db, verification_data.desk_uuid)
         if not desk:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Desk not found"
             )
 
         # Check active binding - 增加註解說明綁定有效期為1小時
-        active_binding = get_active_binding(db, login_data.email)
+        active_binding = get_active_binding(db, verification_data.email)
         if active_binding and active_binding.create_dt + timedelta(
             hours=1
         ) > datetime.now(timezone.utc):
@@ -321,7 +313,7 @@ async def verify_dine_in(
 
         # Bind desk and generate tokens
         desk_to_customer = bind_desk_to_customer(
-            db, login_data.email, login_data.desk_uuid
+            db, verification_data.email, verification_data.desk_uuid
         )
         db.commit()
         desk_uuid = desk_to_customer.desk_uuid
@@ -485,7 +477,7 @@ def release_desk(request: ReleaseBindingRequest, db: Session = Depends(get_sessi
 
 
 @app.put("/customer/update")
-def update_customer(
+def update_customer_api(
     customer_uuid: str,
     customer_name: Optional[str] = None,
     customer_phone: Optional[str] = None,
@@ -507,7 +499,7 @@ def update_customer(
         HTTPException: 當更新失敗時
     """
     try:
-        return update_customer(
+        return update_customer_service(
             db=db,
             customer_uuid=customer_uuid,
             customer_name=customer_name,
@@ -519,7 +511,7 @@ def update_customer(
 
 
 @app.delete("/customer/delete")
-def delete_customer(customer_uuid: str, db: Session = Depends(get_session)):
+def delete_customer_api(customer_uuid: str, db: Session = Depends(get_session)):
     """
     刪除顧客（軟刪除）
 
@@ -534,11 +526,25 @@ def delete_customer(customer_uuid: str, db: Session = Depends(get_session)):
         HTTPException: 當刪除失敗時
     """
     try:
-        return delete_customer(db=db, customer_uuid=customer_uuid)
+        return delete_customer_service(db=db, customer_uuid=customer_uuid)
     except Exception as e:
         log.critical(e, exc_info=True)
         raise HTTPException(status_code=400, detail="delete customer error")
-        return delete_customer(db=db, customer_uuid=customer_uuid)
+    """
+    刪除顧客（軟刪除）
+
+    Args:
+        customer_uuid (str): 顧客UUID
+        db (Session): 資料庫連線
+
+    Returns:
+        Customer: 被刪除的顧客資訊
+
+    Raises:
+        HTTPException: 當刪除失敗時
+    """
+    try:
+        return delete_customer_service(db=db, customer_uuid=customer_uuid)
     except Exception as e:
         log.critical(e, exc_info=True)
         raise HTTPException(status_code=400, detail="delete customer error")
