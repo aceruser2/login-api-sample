@@ -1,14 +1,12 @@
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 from app import app
 
 client = TestClient(app)
 
 
-def test_staff_login_success(client,admin_token):
+def test_staff_login_success(client, admin_token):
     """測試員工登入成功"""
-    # 使用 conftest 中已創建的 admin 帳號
     login_data = {"username": "admin", "password": "123456"}
     response = client.post("/token/staff", json=login_data)
 

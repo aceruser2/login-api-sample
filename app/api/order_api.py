@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Tuple
 from app import app
 from app.services.order_service import (
     create_order,
@@ -13,14 +13,8 @@ from app.services.order_service import (
 from app.extension.sql_ext import get_session
 from app.schema import OrderCreate, OrderResponse, OrderUpdate, OrderStatusUpdate
 from app.extension.jwt_config import get_current_user
-from app.utils.permission_utils import (
-    get_user_info_from_token,
-    can_create_order,
-    can_view_order,
-    can_update_order,
-    can_update_order_status,
-    filter_orders_by_permission,
-)
+from app.extension.emun_setting import OrderStatusEnum
+from app.utils.permission_checker import PermissionChecker
 import logging
 
 log = logging.getLogger(__name__)
@@ -30,19 +24,24 @@ log = logging.getLogger(__name__)
 async def create_new_order(
     order: OrderCreate,
     db: Session = Depends(get_session),
-    current_user=Depends(get_current_user),
+    user_data: Tuple = Depends(get_current_user),
 ):
     """創建新訂單"""
+    user_object, user_type = user_data
+    user_uuid = user_object.uuid
+
+    # 員工需要訂單管理創建權限，顧客只能為自己創建訂單
+    if user_type == "staff":
+        PermissionChecker.require_staff_with_permission(
+            user_data, db, "order_management", "can_create"
+        )
+    elif user_type == "customer" and order.customer_uuid != user_uuid:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Customers can only create orders for themselves.",
+        )
+
     try:
-        user_info = get_user_info_from_token(current_user)
-
-        # 檢查創建訂單權限
-        if not can_create_order(user_info, order.customer_uuid):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Can only create orders for yourself",
-            )
-
         order_obj = create_order(db=db, order=order)
         db.commit()
         return order_obj
@@ -56,25 +55,28 @@ async def create_new_order(
 async def list_orders(
     skip: int = 0,
     limit: int = 20,
-    status_filter: str = None,
+    status_filter: int = None,
     db: Session = Depends(get_session),
-    current_user=Depends(get_current_user),
+    user_data: Tuple = Depends(get_current_user),
 ):
     """獲取訂單列表"""
-    try:
-        user_info = get_user_info_from_token(current_user)
+    user_object, user_type = user_data
+    user_uuid = user_object.uuid
 
-        # 根據用戶類型獲取訂單
-        if user_info["user_type"] == "customer":
-            orders = get_orders_by_customer(
-                db=db, customer_uuid=user_info["uuid"], skip=skip, limit=limit
+    try:
+        if user_type == "staff":
+            # 員工需要訂單管理讀取權限
+            PermissionChecker.require_staff_with_permission(
+                user_data, db, "order_management", "can_read"
+            )
+            return get_orders(db=db, skip=skip, limit=limit, status=status_filter)
+        elif user_type == "customer":
+            # 顧客只能查看自己的訂單
+            return get_orders_by_customer(
+                db=db, customer_uuid=user_uuid, skip=skip, limit=limit
             )
         else:
-            orders = get_orders(db=db, skip=skip, limit=limit, status=status_filter)
-
-        # 根據權限過濾訂單
-        filtered_orders = filter_orders_by_permission(user_info, orders)
-        return filtered_orders
+            return []
     except Exception as e:
         log.critical(e, exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
@@ -85,24 +87,38 @@ async def update_order_content(
     order_uuid: str,
     order_update: OrderUpdate,
     db: Session = Depends(get_session),
-    current_user=Depends(get_current_user),
+    user_data: Tuple = Depends(get_current_user),
 ):
-    """更新訂單內容（僅pending狀態）"""
+    """更新訂單內容"""
+    user_object, user_type = user_data
+    user_uuid = user_object.uuid
+
+    order = get_order_by_uuid(db=db, order_uuid=order_uuid)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # 權限檢查
+    can_update = False
+    if user_type == "staff":
+        # 員工需要訂單管理更新權限
+        PermissionChecker.require_staff_with_permission(
+            user_data, db, "order_management", "can_update"
+        )
+        can_update = True
+    elif user_type == "customer":
+        # 顧客只能更新自己的pending訂單
+        is_own_order = order.customer_uuid == user_uuid
+        is_pending = order.status == OrderStatusEnum.PENDING.value
+        if is_own_order and is_pending:
+            can_update = True
+
+    if not can_update:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied. Can only update your own pending orders.",
+        )
+
     try:
-        user_info = get_user_info_from_token(current_user)
-
-        # 獲取訂單
-        order = get_order_by_uuid(db=db, order_uuid=order_uuid)
-        if not order:
-            raise HTTPException(status_code=404, detail="Order not found")
-
-        # 檢查更新權限
-        if not can_update_order(user_info, order.customer_uuid, order.status):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Can only update your own pending orders",
-            )
-
         updated_order = update_order(
             db=db, order_uuid=order_uuid, order_update=order_update
         )
@@ -119,24 +135,40 @@ async def update_order_status_endpoint(
     order_uuid: str,
     status_update: OrderStatusUpdate,
     db: Session = Depends(get_session),
-    current_user=Depends(get_current_user),
+    user_data: Tuple = Depends(get_current_user),
 ):
-    """更新訂單狀態（僅員工）"""
-    try:
-        user_info = get_user_info_from_token(current_user)
+    """更新訂單狀態（需要訂單狀態管理權限）"""
+    user_object, user_type = user_data
 
-        # 檢查狀態更新權限
-        if not can_update_order_status(user_info):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only staff can update order status",
-            )
-
-        result = update_order_status(
-            db=db, order_uuid=order_uuid, status=status_update.status
+    # 只有員工可以更新訂單狀態
+    if user_type != "staff":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only staff can update order status.",
         )
+
+    # 檢查訂單狀態管理權限
+    PermissionChecker.require_staff_with_permission(
+        user_data, db, "order_status_management", "can_update"
+    )
+
+    try:
+        # 將傳入的狀態字串轉換為對應的 Enum 成員，再取其值
+        if hasattr(status_update.status, "value"):
+            # 如果是 Enum 對象
+            status_value = status_update.status.value
+        else:
+            # 如果是字串，嘗試轉換為 Enum
+            status_value = OrderStatusEnum[status_update.status.upper()].value
+
+        result = update_order_status(db=db, order_uuid=order_uuid, status=status_value)
         db.commit()
         return result
+    except KeyError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid status provided: {status_update.status}",
+        )
     except Exception as e:
         db.rollback()
         log.critical(e, exc_info=True)
@@ -147,26 +179,28 @@ async def update_order_status_endpoint(
 async def get_order(
     order_uuid: str,
     db: Session = Depends(get_session),
-    current_user=Depends(get_current_user),
+    user_data: Tuple = Depends(get_current_user),
 ):
     """獲取特定訂單"""
-    try:
-        user_info = get_user_info_from_token(current_user)
+    user_object, user_type = user_data
+    user_uuid = user_object.uuid
 
-        order = get_order_by_uuid(db=db, order_uuid=order_uuid)
-        if not order:
-            raise HTTPException(status_code=404, detail="Order not found")
+    order = get_order_by_uuid(db=db, order_uuid=order_uuid)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
 
-        # 檢查查看權限
-        if not can_view_order(user_info, order.customer_uuid):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Can only access your own orders",
-            )
-
+    # 權限檢查
+    if user_type == "staff":
+        # 員工需要訂單管理讀取權限
+        PermissionChecker.require_staff_with_permission(
+            user_data, db, "order_management", "can_read"
+        )
         return order
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.critical(e, exc_info=True)
-        raise HTTPException(status_code=400, detail=str(e))
+    elif user_type == "customer" and order.customer_uuid == user_uuid:
+        # 顧客只能查看自己的訂單
+        return order
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access this order.",
+        )

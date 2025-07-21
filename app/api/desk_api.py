@@ -4,7 +4,8 @@ from app.extension.sql_ext import get_session
 from app.services import desk_service
 from app.schema.desk_schema import CreateDeskSchema, UpdateDeskSchema, DeskOutSchema
 from app.extension.jwt_config import get_current_user
-from typing import List
+from app.utils.permission_checker import PermissionChecker
+from typing import List, Tuple
 import logging
 
 router = APIRouter(prefix="/desks", tags=["desks"])
@@ -15,9 +16,12 @@ log = logging.getLogger(__name__)
 def create_desk(
     desk_data: CreateDeskSchema,
     db: Session = Depends(get_session),
-    current_user=Depends(get_current_user),
+    user_data: Tuple = Depends(get_current_user),
 ):
-    """創建新桌位"""
+    """創建新桌位（需要桌位管理創建權限）"""
+    PermissionChecker.require_staff_with_permission(
+        user_data, db, "desk_management", "can_create"
+    )
     try:
         desk = desk_service.create_desk(db, desk_data.desk_name)
         db.commit()
@@ -30,7 +34,7 @@ def create_desk(
 
 @router.get("/", response_model=List[DeskOutSchema])
 def get_all_desks(skip: int = 0, limit: int = 100, db: Session = Depends(get_session)):
-    """獲取所有桌位"""
+    """獲取所有桌位（公開）"""
     try:
         desks = desk_service.get_all_desks(db, skip=skip, limit=limit)
         return desks
@@ -43,9 +47,8 @@ def get_all_desks(skip: int = 0, limit: int = 100, db: Session = Depends(get_ses
 def get_desk_endpoint(
     desk_uuid: str,
     db: Session = Depends(get_session),
-    current_user=Depends(get_current_user),
 ):
-    """獲取單個桌位"""
+    """獲取單個桌位（公開）"""
     try:
         desk = desk_service.get_desk_by_uuid(db, desk_uuid)
         if not desk:
@@ -60,9 +63,12 @@ def update_desk(
     desk_uuid: str,
     desk_data: UpdateDeskSchema,
     db: Session = Depends(get_session),
-    current_user=Depends(get_current_user),
+    user_data: Tuple = Depends(get_current_user),
 ):
-    """更新桌位"""
+    """更新桌位（需要桌位管理更新權限）"""
+    PermissionChecker.require_staff_with_permission(
+        user_data, db, "desk_management", "can_update"
+    )
     try:
         desk = desk_service.update_desk(db, desk_uuid, desk_data.desk_name)
         if not desk:
@@ -81,9 +87,12 @@ def update_desk(
 def delete_desk_endpoint(
     desk_uuid: str,
     db: Session = Depends(get_session),
-    current_user=Depends(get_current_user),
+    user_data: Tuple = Depends(get_current_user),
 ):
-    """刪除桌位"""
+    """刪除桌位（需要桌位管理刪除權限）"""
+    PermissionChecker.require_staff_with_permission(
+        user_data, db, "desk_management", "can_delete"
+    )
     try:
         desk = desk_service.delete_desk(db, desk_uuid)
         db.commit()
@@ -94,4 +103,6 @@ def delete_desk_endpoint(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Internal server error")
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")

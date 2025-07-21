@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -16,13 +17,28 @@ import {
   DialogActions
 } from '@mui/material';
 import { LoadingButton } from '@mui/lab';
-import { authApi } from '../api/authApi';
+import { useAuth } from '../contexts/AuthContext';
+import { authService } from '../services/api';
 
 export const Login = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { staffLogin, customerLogin, user } = useAuth();
+  
+  // 從location中獲取重定向路徑
+  const from = location.state?.from?.pathname || '/';
+  
   // 基本狀態
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState({ open: false, message: '', severity: 'info' });
+  
+  // 如果用戶已經登入，自動重定向
+  useEffect(() => {
+    if (user) {
+      navigate(from, { replace: true });
+    }
+  }, [user, navigate, from]);
   
   // 員工登入狀態
   const [staffCredentials, setStaffCredentials] = useState({
@@ -32,7 +48,7 @@ export const Login = () => {
   
   // 顧客登入狀態
   const [customerInfo, setCustomerInfo] = useState({
-    custom_name: '',
+    customer_name: '',
     phone: '',
     email: '',
   });
@@ -41,7 +57,7 @@ export const Login = () => {
   const [verificationState, setVerificationState] = useState({
     showDialog: false,
     code: '',
-    deskNumber: '',
+    deskUuid: '',
     isTakeout: false,
   });
 
@@ -74,20 +90,24 @@ export const Login = () => {
         return;
       }
       
-      const result = await authApi.login(username, password);
-      // 儲存令牌和用戶類型
-      localStorage.setItem('token', result.access_token);
-      localStorage.setItem('refreshToken', result.refresh_token);
-      localStorage.setItem('userType', 'staff');
+      // 使用上下文中的登入函數
+      const result = await staffLogin(username, password);
       
       showAlert('登入成功！', 'success');
-      // 員工導向管理儀表板
+      
+      // 導向頁面根據角色決定
+      let redirectPath = from;
+      if (result.roles.some(r => r.role_name.toLowerCase() === 'admin')) {
+        redirectPath = '/admin/dashboard';
+      }
+      
+      // 延遲導向，讓用戶看到成功訊息
       setTimeout(() => {
-        window.location.href = '/staff/dashboard';
+        navigate(redirectPath, { replace: true });
       }, 1500);
     } catch (error) {
       console.error('登入失敗：', error);
-      showAlert(error.response?.data?.detail || '登入失敗，請檢查帳號密碼');
+      showAlert(error.message || '登入失敗，請檢查帳號密碼');
     } finally {
       setLoading(false);
     }
@@ -99,16 +119,16 @@ export const Login = () => {
     setLoading(true);
     
     try {
-      const { custom_name, phone, email } = customerInfo;
+      const { customer_name, phone, email } = customerInfo;
       
       // 驗證輸入
-      if (!custom_name || !phone || !email) {
+      if (!customer_name || !phone || !email) {
         showAlert('請填寫所有欄位');
         return;
       }
       
       // 發送驗證碼請求
-      await authApi.customerLogin(customerInfo);
+      await authService.customerSendCode(customerInfo);
       
       // 成功後打開驗證碼對話框
       setVerificationState({
@@ -120,7 +140,7 @@ export const Login = () => {
       showAlert('驗證碼已發送至您的郵箱', 'success');
     } catch (error) {
       console.error('發送驗證碼失敗：', error);
-      showAlert(error.response?.data?.detail || '發送驗證碼失敗');
+      showAlert(error.message || '發送驗證碼失敗');
     } finally {
       setLoading(false);
     }
@@ -131,47 +151,59 @@ export const Login = () => {
     setLoading(true);
     
     try {
-      const { code, deskNumber, isTakeout } = verificationState;
+      const { code, deskUuid, isTakeout } = verificationState;
       
       if (!code) {
         showAlert('請輸入驗證碼');
         return;
       }
       
+      let verifyData;
       let result;
+      
       if (isTakeout) {
         // 外帶驗證
-        result = await authApi.verifyTakeout(customerInfo, code);
+        verifyData = {
+          email: customerInfo.email,
+          verify_code: code,
+          phone: customerInfo.phone,
+        };
+        result = await authService.verifyTakeout(verifyData);
       } else {
         // 內用驗證，需要桌號
-        if (!deskNumber) {
+        if (!deskUuid) {
           showAlert('請輸入桌號');
           return;
         }
-        result = await authApi.verifyDineIn(customerInfo, code, deskNumber);
+        verifyData = {
+          email: customerInfo.email,
+          verify_code: code,
+          desk_uuid: deskUuid
+        };
+        result = await authService.verifyDineIn(verifyData);
       }
       
-      // 儲存令牌和用戶類型
-      localStorage.setItem('token', result.access_token);
-      localStorage.setItem('refreshToken', result.refresh_token);
-      localStorage.setItem('userType', 'customer');
-      localStorage.setItem('customerEmail', customerInfo.email);
+      // 使用上下文的顧客登入函數
+      await customerLogin(result);
       
       // 如果是內用，還要儲存桌號
       if (!isTakeout) {
-        localStorage.setItem('deskNumber', deskNumber);
+        localStorage.setItem('deskNumber', deskUuid);
       }
+      
+      // 儲存顧客郵箱，用於後續API呼叫
+      localStorage.setItem('customerEmail', customerInfo.email);
       
       setVerificationState({ ...verificationState, showDialog: false });
       showAlert('登入成功！', 'success');
       
       // 顧客導向點餐頁面
       setTimeout(() => {
-        window.location.href = isTakeout ? '/customer/takeout-menu' : '/customer/menu';
+        navigate('/customer/menu', { replace: true });
       }, 1500);
     } catch (error) {
       console.error('驗證失敗：', error);
-      showAlert(error.response?.data?.detail || '驗證碼錯誤或已過期');
+      showAlert(error.message || '驗證碼錯誤或已過期');
     } finally {
       setLoading(false);
     }
@@ -227,8 +259,8 @@ export const Login = () => {
                 fullWidth
                 label="姓名"
                 margin="normal"
-                name="custom_name"
-                value={customerInfo.custom_name}
+                name="customer_name"
+                value={customerInfo.customer_name}
                 onChange={handleCustomerInputChange}
                 required
               />
@@ -282,8 +314,8 @@ export const Login = () => {
               margin="dense"
               label="桌號"
               fullWidth
-              value={verificationState.deskNumber}
-              onChange={(e) => setVerificationState({ ...verificationState, deskNumber: e.target.value })}
+              value={verificationState.deskUuid}
+              onChange={(e) => setVerificationState({ ...verificationState, deskUuid: e.target.value })}
             />
           )}
         </DialogContent>
@@ -310,3 +342,5 @@ export const Login = () => {
     </Container>
   );
 };
+
+export default Login;

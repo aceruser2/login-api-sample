@@ -1,5 +1,7 @@
 from typing import Optional, List
 from pydantic import BaseModel, ConfigDict
+from datetime import datetime
+from app.extension.emun_setting import OrderStatusEnum
 
 
 class OrderItemCreate(BaseModel):
@@ -21,7 +23,7 @@ class OrderItemResponse(BaseModel):
     unit_price: int
     subtotal: int
     note: Optional[str]
-    status: str
+    status: int
 
 
 class OrderCreate(BaseModel):
@@ -43,11 +45,11 @@ class OrderResponse(BaseModel):
     customer_uuid: str
     desk_uuid: Optional[str]
     total_amount: int
-    status: str
+    status: int
     order_type: str
     note: Optional[str]
-    create_dt: str
-    update_dt: str
+    create_dt: datetime
+    update_dt: datetime
 
 
 class OrderUpdate(BaseModel):
@@ -60,4 +62,4 @@ class OrderUpdate(BaseModel):
 class OrderStatusUpdate(BaseModel):
     """更新訂單狀態的 Schema"""
 
-    status: str
+    status: OrderStatusEnum  # 使用 Enum 進行驗證

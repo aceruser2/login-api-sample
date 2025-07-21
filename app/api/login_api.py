@@ -64,7 +64,7 @@ def generate_staff_tokens(user_uuid: str, extra_data: dict = None):
     """
     access_token_expires = timedelta(minutes=JwtEnv.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user_uuid, **(extra_data or {})},
+        data={"sub": user_uuid, "user_type": "staff", **(extra_data or {})},
         expires_delta=access_token_expires,
     )
     refresh_token = create_refresh_token(
@@ -87,7 +87,7 @@ def generate_custom_tokens(custom_uuid: str, extra_data: dict = None):
     """
     access_token_expires = timedelta(minutes=JwtEnv.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": custom_uuid, **(extra_data or {})},
+        data={"sub": custom_uuid, "user_type": "customer" ** (extra_data or {})},
         expires_delta=access_token_expires,
     )
     refresh_token = create_refresh_token(

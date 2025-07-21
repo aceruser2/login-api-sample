@@ -1,6 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
-from datetime import datetime
+from typing import Optional, List, Dict
 
 
 class LoginData(BaseModel):
@@ -8,9 +7,29 @@ class LoginData(BaseModel):
     password: str
 
 
+class TokenData(BaseModel):
+    user_uuid: Optional[str] = None
+
+
+class RoleInfo(BaseModel):
+    role_uuid: str
+    role_name: str
+    level: int
+
+
+class PermissionInfo(BaseModel):
+    permission_uuid: str
+    permission_name: str
+    attributes: Dict[str, bool]
+
+
 class Token(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str
+    # 新增角色和權限資訊
+    roles: List[RoleInfo] = []
+    permissions: List[PermissionInfo] = []
 
 
 class LoginToken(BaseModel):

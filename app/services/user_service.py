@@ -227,3 +227,69 @@ def delete_user(db: Session, user_uuid: str):
         raise ValueError("user not found")
     delete_user.soft_delete = True
     return delete_user
+
+
+def assign_permission_to_user(db: Session, user_uuid: str, role_uuid: str):
+    """為用戶分配角色權限"""
+    # 檢查用戶是否存在
+    user = get_user_by_uuid(db, user_uuid)
+    if not user:
+        raise ValueError("User not found")
+
+    # 檢查角色是否存在
+    role = get_role_and_permission_by_role_uuid(db, role_uuid)
+    if not role:
+        raise ValueError("Role not found")
+
+    # 檢查是否已經有此角色
+    existing_role_user = db.execute(
+        select(RoleUser).where(
+            RoleUser.user_uuid == user_uuid,
+            RoleUser.role_uuid == role_uuid,
+            RoleUser.soft_delete == false(),
+        )
+    ).scalar_one_or_none()
+
+    if existing_role_user:
+        raise ValueError("User already has this role")
+
+    # 創建新的角色用戶關聯
+    role_user = RoleUser(user_uuid=user_uuid, role_uuid=role_uuid)
+    db.add(role_user)
+    db.flush()
+
+    return role_user
+
+
+def remove_permission_from_user(db: Session, user_uuid: str, role_uuid: str):
+    """移除用戶的角色權限"""
+    role_user = db.execute(
+        select(RoleUser).where(
+            RoleUser.user_uuid == user_uuid,
+            RoleUser.role_uuid == role_uuid,
+            RoleUser.soft_delete == false(),
+        )
+    ).scalar_one_or_none()
+
+    if not role_user:
+        raise ValueError("User does not have this role")
+
+    role_user.soft_delete = True
+    return role_user
+
+
+def get_all_roles(db: Session, skip: int = 0, limit: int = 100):
+    """獲取所有角色"""
+    stmt = select(Role).where(Role.soft_delete == false()).offset(skip).limit(limit)
+    return db.execute(stmt).scalars().all()
+
+
+def get_all_permissions(db: Session, skip: int = 0, limit: int = 100):
+    """獲取所有權限"""
+    stmt = (
+        select(Permission)
+        .where(Permission.soft_delete == false())
+        .offset(skip)
+        .limit(limit)
+    )
+    return db.execute(stmt).scalars().all()

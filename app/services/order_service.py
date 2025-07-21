@@ -33,7 +33,7 @@ def create_order(db: Session, order: OrderCreate):
                 "unit_price": menu_item.price,
                 "subtotal": subtotal,
                 "note": item.note,
-                "status": "pending",
+                "status": OrderStatusEnum.PENDING.value,
             }
         )
 
@@ -57,31 +57,12 @@ def create_order(db: Session, order: OrderCreate):
     return db_order
 
 
-def get_orders(db: Session, skip: int = 0, limit: int = 20, status: str = None):
+def get_orders(db: Session, skip: int = 0, limit: int = 20, status: int = None):
     """獲取訂單列表"""
     stmt = select(Order).where(Order.soft_delete == False)
-    if status:
+    if status is not None:
         stmt = stmt.where(Order.status == status)
     return db.execute(stmt.offset(skip).limit(limit)).scalars().all()
-
-
-def update_order_status(db: Session, order_uuid: str, status: str):
-    """更新訂單狀態"""
-    stmt = select(Order).where(Order.uuid == order_uuid)
-    db_order = db.execute(stmt).scalar_one_or_none()
-
-    if not db_order:
-        raise ValueError("Order not found")
-
-    db_order.status = status
-    db_order.update_dt = datetime.now()
-    return db_order
-
-
-def get_order_by_uuid(db: Session, order_uuid: str):
-    """通過UUID獲取訂單"""
-    stmt = select(Order).where(Order.uuid == order_uuid)
-    return db.execute(stmt).scalar_one_or_none()
 
 
 def get_orders_by_customer(
@@ -143,7 +124,7 @@ def update_order(db: Session, order_uuid: str, order_update: OrderUpdate):
                 unit_price=menu_item.price,
                 subtotal=subtotal,
                 note=item.note,
-                status="pending",
+                status=OrderStatusEnum.PENDING.value,
             )
             db.add(db_item)
 
@@ -151,3 +132,22 @@ def update_order(db: Session, order_uuid: str, order_update: OrderUpdate):
 
     db_order.update_dt = datetime.now(timezone.utc)
     return db_order
+
+
+def update_order_status(db: Session, order_uuid: str, status: int):
+    """更新訂單狀態"""
+    stmt = select(Order).where(Order.uuid == order_uuid)
+    db_order = db.execute(stmt).scalar_one_or_none()
+
+    if not db_order:
+        raise ValueError("Order not found")
+
+    db_order.status = status
+    db_order.update_dt = datetime.now(timezone.utc)
+    return db_order
+
+
+def get_order_by_uuid(db: Session, order_uuid: str):
+    """通過UUID獲取訂單"""
+    stmt = select(Order).where(Order.uuid == order_uuid)
+    return db.execute(stmt).scalar_one_or_none()
