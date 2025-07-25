@@ -13,6 +13,7 @@ import { PaymentPage } from './pages/PaymentPage';
 import { Reports } from './pages/Reports';
 import { NotFound } from './pages/NotFound';
 import { Unauthorized } from './pages/Unauthorized';
+import { ScanQRLogin } from './pages/ScanQRLogin';
 
 // 組件
 import { Layout } from './components/Layout';
@@ -100,6 +101,9 @@ function App() {
                   </Layout>
                 </ProtectedRoute>
               } />
+              
+              {/* 二維碼掃描登入頁面 */}
+              <Route path="/scan-login" element={<ScanQRLogin />} />
               
               {/* 404頁面 */}
               <Route path="/404" element={<NotFound />} />

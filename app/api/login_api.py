@@ -87,7 +87,7 @@ def generate_custom_tokens(custom_uuid: str, extra_data: dict = None):
     """
     access_token_expires = timedelta(minutes=JwtEnv.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": custom_uuid, "user_type": "customer" ** (extra_data or {})},
+        data={"sub": custom_uuid, "user_type": "customer", **(extra_data or {})},
         expires_delta=access_token_expires,
     )
     refresh_token = create_refresh_token(
@@ -235,7 +235,7 @@ async def login_dine_in_customer(
         elif not user:
             user = create_customer(
                 db=db,
-                customer_name=login_data.custom_name,
+                customer_name=login_data.customer_name,
                 customer_phone=login_data.phone,
                 email=login_data.email,
                 is_verified=False,
@@ -261,8 +261,6 @@ async def login_dine_in_customer(
             "is_new_user": new_user,
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         db.rollback()
         log.critical(f"Email verification failed: {str(e)}", exc_info=True)

@@ -21,7 +21,7 @@ export const authApi = {
   /**
    * 顧客登入請求發送驗證碼
    * @param {object} customerData - 顧客資料
-   * @param {string} customerData.custom_name - 顧客姓名
+   * @param {string} customerData.customer_name - 顧客姓名
    * @param {string} customerData.email - 顧客電子郵件
    * @param {string} customerData.phone - 顧客電話
    * @returns {Promise<object>} 發送結果
@@ -36,7 +36,7 @@ export const authApi = {
    * @param {object} loginData - 登入資料
    * @param {string} loginData.email - 顧客電子郵件
    * @param {string} loginData.phone - 顧客電話
-   * @param {string} loginData.custom_name - 顧客姓名
+   * @param {string} loginData.customer_name - 顧客姓名
    * @param {string} verificationCode - 驗證碼
    * @param {string} deskUuid - 桌位UUID
    * @returns {Promise<object>} 包含JWT令牌的響應
@@ -116,4 +116,35 @@ export const authApi = {
     });
     return response.data;
   },
+
+  /**
+   * 掃描QR code獲取桌位信息後進行驗證登入
+   * @param {string} email - 顧客電子郵件
+   * @param {string} verificationCode - 驗證碼
+   * @param {string} deskUuid - 從QR code獲取的桌位UUID
+   * @returns {Promise<object>} 登入結果，包含JWT令牌
+   */
+  verifyWithScannedQRCode: async (email, verificationCode, deskUuid) => {
+    const response = await axios.post(`${API_URL}/verify/dine-in`, {
+      email: email,
+      verify_code: verificationCode,
+      desk_uuid: deskUuid
+    });
+    return response.data;
+  },
+
+  /**
+   * 獲取桌位的QR code
+   * @param {string} deskUuid - 桌位UUID
+   * @returns {Promise<object>} 包含QR code base64的響應
+   */
+  getDeskQRCode: async (deskUuid) => {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`${API_URL}/desks/${deskUuid}/qrcode`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    return response.data;
+  }
 };

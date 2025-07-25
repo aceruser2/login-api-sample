@@ -25,7 +25,7 @@ class LoginData(BaseModel):
 
 
 class CustomLoginData(BaseModel):
-    custom_name: str
+    customer_name: str
     phone: str
     email: str
 

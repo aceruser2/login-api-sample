@@ -93,7 +93,7 @@ POST /custom/email-send-code
 
 Request:
 {
-  "custom_name": "測試顧客",
+  "customer_name": "測試顧客",
   "phone": "0912345678",
   "email": "customer@example.com"
 }

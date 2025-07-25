@@ -49,3 +49,9 @@ class ReleaseBindingResponse(BaseModel):
     message: str
 
 
+class DeskQRCodeResponse(BaseModel):
+    """桌位QR code的回應Schema"""
+
+    desk_uuid: str
+    desk_name: str
+    qrcode_base64: str  # QR code的base64編碼

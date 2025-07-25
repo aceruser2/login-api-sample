@@ -2,7 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.extension.sql_ext import get_session
 from app.services import desk_service
-from app.schema.desk_schema import CreateDeskSchema, UpdateDeskSchema, DeskOutSchema
+from app.schema.desk_schema import (
+    CreateDeskSchema,
+    UpdateDeskSchema,
+    DeskOutSchema,
+    DeskQRCodeResponse,
+)
 from app.extension.jwt_config import get_current_user
 from app.utils.permission_checker import PermissionChecker
 from typing import List, Tuple
@@ -103,6 +108,28 @@ def delete_desk_endpoint(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/{desk_uuid}/qrcode", response_model=DeskQRCodeResponse)
+def generate_desk_qrcode_api(desk_uuid: str, db: Session = Depends(get_session)):
+    """
+    生成桌位QR code
+
+    此QR code包含桌位的UUID，顧客可掃描後獲取桌位信息並用於登入
+    """
+    try:
+        # 檢查桌位是否存在
+        desk = desk_service.get_desk_by_uuid(db, desk_uuid)
+        if not desk:
+            raise HTTPException(status_code=404, detail="Desk not found")
+
+        # 生成QR code
+        qr_code_base64 = desk_service.generate_desk_qrcode(desk_uuid)
+
+        return {
+            "desk_uuid": desk_uuid,
+            "desk_name": desk.desk_name,
+            "qrcode_base64": qr_code_base64,
+        }
     except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail=str(e))

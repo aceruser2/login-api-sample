@@ -70,8 +70,8 @@ if __name__ == "__main__":
         "http://localhost:3000",
         "http://localhost:3001",
         "http://localhost:8080",
+        "http://localhost:5173"
     ]
-
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,

@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Dict
+from datetime import datetime
 
 
 class LoginData(BaseModel):
@@ -39,7 +40,7 @@ class LoginToken(BaseModel):
 
 
 class CustomLoginData(BaseModel):
-    custom_name: str
+    customer_name: str
     phone: str
     email: EmailStr
 
